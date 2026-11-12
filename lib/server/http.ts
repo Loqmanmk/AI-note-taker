@@ -1,5 +1,8 @@
 import type { NotesResponse } from "../schema";
+import { getAccounts } from "./accounts";
+import type { AuthUser } from "./auth";
 import { RateLimiter } from "./rateLimiter";
+import { authenticate } from "./requestAuth";
 import { GenerationError, type GenerationErrorCode, type GenerationResult } from "./studyPackGenerator";
 
 /** Every AI request has a cost, so cap how often one client can ask. Shared by all notes routes. */
@@ -20,14 +23,16 @@ export function errorResponse(status: number, message: string, headers?: Headers
   return Response.json({ error: message }, { status, headers });
 }
 
-function clientKey(req: Request): string {
+function clientKey(req: Request, user: AuthUser | null): string {
+  // A signed-in student is limited per account, wherever they connect from.
+  if (user) return `user:${user.id}`;
   // Trust this header only behind a proxy that sets it (Vercel, nginx, ...).
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return `ip:${req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"}`;
 }
 
 /** Returns a 429 response when the client has asked too often, otherwise nothing. */
-export function rateLimitResponse(req: Request): Response | undefined {
-  const rate = limiter.check(clientKey(req));
+export function rateLimitResponse(req: Request, user: AuthUser | null): Response | undefined {
+  const rate = limiter.check(clientKey(req, user));
   if (rate.allowed) return undefined;
   return errorResponse(429, "You have made a lot of requests. Try again in a few minutes.", {
     "Retry-After": String(rate.retryAfterSeconds),
@@ -35,13 +40,38 @@ export function rateLimitResponse(req: Request): Response | undefined {
 }
 
 /**
- * Runs a generation and turns its outcome into an HTTP response.
+ * Checks who is asking and whether they may ask now.
+ * Returns the student (null when accounts are off) or the response to send instead.
+ */
+export async function admitRequest(req: Request): Promise<{ user: AuthUser | null } | Response> {
+  const { verifier, required } = getAccounts();
+  const auth = await authenticate(req, verifier, required);
+  if (!auth.ok) return errorResponse(auth.status, auth.message);
+  return rateLimitResponse(req, auth.user) ?? { user: auth.user };
+}
+
+/** Saves a new study pack to the student's account. A failed save is logged and the notes are still returned. */
+async function saveToAccount(user: AuthUser | null, result: GenerationResult): Promise<string | undefined> {
+  const repository = getAccounts().repository;
+  if (!user || !repository || result.demo) return undefined;
+  try {
+    return await repository.save(user, result.pack);
+  } catch (err) {
+    console.error("[notes] could not save the class", err);
+    return undefined;
+  }
+}
+
+/**
+ * Runs a generation, saves the result for a signed-in student, and turns the outcome into an HTTP response.
  * The cause of a failure is logged for the operator; the student only sees a safe message.
  */
-export async function generationResponse(run: () => Promise<GenerationResult>): Promise<Response> {
+export async function generationResponse(user: AuthUser | null, run: () => Promise<GenerationResult>): Promise<Response> {
   try {
     const result = await run();
-    return Response.json(result satisfies NotesResponse, { headers: { "Cache-Control": "no-store" } });
+    const classId = await saveToAccount(user, result);
+    const body: NotesResponse = { ...result, ...(classId ? { classId } : {}) };
+    return Response.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     if (err instanceof GenerationError) {
       console.error(`[notes] generation failed: ${err.code}`, err.cause ?? "");

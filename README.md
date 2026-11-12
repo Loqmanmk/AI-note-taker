@@ -26,6 +26,10 @@ The app picks its AI provider from the key it finds in `.env.local`:
 
 If both keys are set, Gemini is used. On Gemini's free tier, Google may use the content you send to improve its products, so do not use it for private recordings.
 
+## Accounts
+
+Students sign in with Google, and their classes are saved in their account, shared between the phone and the website. Accounts use Supabase: follow [docs/accounts-setup.md](docs/accounts-setup.md) once to set them up. Without that setup, development runs without sign-in.
+
 ## Mobile app
 
 The Android and iOS app lives in [`mobile/`](mobile/README.md). It records audio on the phone and uses this project as its server, through `POST /api/notes/audio`.
@@ -68,7 +72,9 @@ Design rules the code follows:
 
 ## Security
 
-- The API keys live only on the server (`.env.local`, never committed) and are never sent to the browser.
+- The AI keys live only on the server (`.env.local`, never committed) and are never sent to the browser.
+- Every notes request must carry the student's Supabase access token; the server verifies its signature and limits requests per account. Without Supabase settings, production refuses all requests.
+- Saved classes are protected by row-level security: each student can read, add and delete only their own, and rows are size-limited.
 - Every request is validated (type, size, allowed languages, audio format) before it reaches the AI.
 - Recordings are sent to the AI service for one request and deleted from it straight after.
 - Requests are rate limited per client (10 every 10 minutes). The limiter is in memory, so replace it with a shared store such as Redis before running more than one server instance.

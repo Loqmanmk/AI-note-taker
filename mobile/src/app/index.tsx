@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SAMPLE_TRANSCRIPT } from "@shared/sample";
 import type { NotesResponse } from "@shared/schema";
+import { AccountButton } from "@/components/AccountButton";
 import { HistoryList } from "@/components/HistoryList";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { ProcessingCard, RECORDING_STEPS, TRANSCRIPT_STEPS, type ProcessingStep } from "@/components/ProcessingCard";
@@ -18,6 +19,7 @@ import { useNoteLanguage } from "@/hooks/useNoteLanguage";
 import { useServerStatus } from "@/hooks/useServerStatus";
 import { requestStudyPackFromRecording, requestStudyPackFromTranscript } from "@/lib/api";
 import { classStore } from "@/lib/classStore";
+import { confirmDestructive } from "@/lib/confirm";
 import { radius, spacing, useTheme } from "@/lib/theme";
 
 function newClassId(): string {
@@ -48,8 +50,9 @@ export default function HomeScreen() {
     setProcessing(steps);
     setError("");
     try {
-      const { pack, demo } = await request();
-      const saved = { id: newClassId(), date: new Date().toISOString(), pack, demo };
+      const { pack, demo, classId } = await request();
+      // The server returns the id it saved the class under in the student's account.
+      const saved = { id: classId ?? newClassId(), date: new Date().toISOString(), pack, demo };
       classStore.add(saved);
       router.push({ pathname: "/class/[id]", params: { id: saved.id } });
       return true;
@@ -75,10 +78,13 @@ export default function HomeScreen() {
   }
 
   function confirmDiscard() {
-    Alert.alert("Discard this recording?", "The audio will be deleted and cannot be recovered.", [
-      { text: "Keep it", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: recorder.discard },
-    ]);
+    confirmDestructive({
+      title: "Discard this recording?",
+      message: "The audio will be deleted and cannot be recovered.",
+      confirmLabel: "Discard",
+      cancelLabel: "Keep it",
+      onConfirm: recorder.discard,
+    });
   }
 
   const busy = processing !== null;
@@ -98,9 +104,10 @@ export default function HomeScreen() {
         <LinearGradient colors={[theme.gradient[0], theme.gradient[1]]} style={styles.logo}>
           <Ionicons name="sparkles" size={18} color="#FFFFFF" />
         </LinearGradient>
-        <Txt variant="label" tone="muted">
+        <Txt variant="label" tone="muted" style={styles.grow}>
           FocusNotes
         </Txt>
+        <AccountButton />
       </View>
 
       <Txt variant="small" style={styles.greeting}>
@@ -136,6 +143,8 @@ export default function HomeScreen() {
       {recorder.phase !== "recording" && !busy && (
         <HistoryList
           items={history.items}
+          status={history.status}
+          onRetry={history.reload}
           onOpen={(id) => router.push({ pathname: "/class/[id]", params: { id } })}
           onDelete={history.remove}
           onTryExample={tryExample}

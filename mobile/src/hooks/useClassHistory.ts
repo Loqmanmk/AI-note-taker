@@ -2,6 +2,11 @@ import { useSyncExternalStore } from "react";
 import { classStore } from "@/lib/classStore";
 
 export function useClassHistory() {
-  const items = useSyncExternalStore(classStore.subscribe, classStore.getSnapshot, classStore.getSnapshot);
-  return { items, remove: (id: string) => classStore.remove(id) };
+  const state = useSyncExternalStore(classStore.subscribe, classStore.getSnapshot, classStore.getSnapshot);
+  return {
+    items: state.items,
+    status: state.status,
+    reload: () => classStore.reload(),
+    remove: (id: string) => classStore.remove(id),
+  };
 }
