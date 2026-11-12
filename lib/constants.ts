@@ -44,3 +44,17 @@ export const AUDIO_MIME_TYPES: Record<string, string> = {
   "audio/webm": "audio/webm",
   "audio/ogg": "audio/ogg",
 };
+
+/**
+ * Used when the declared type is missing or unknown. Phones label the same
+ * recording differently (Android and iOS disagree on .m4a, for example).
+ */
+export const AUDIO_EXTENSION_TYPES: Record<string, string> = {
+  m4a: "audio/mp4",
+  mp4: "audio/mp4",
+  aac: "audio/aac",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  webm: "audio/webm",
+  ogg: "audio/ogg",
+};

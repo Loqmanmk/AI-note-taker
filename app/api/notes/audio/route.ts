@@ -1,4 +1,5 @@
-import { AUDIO_MAX_BYTES, AUDIO_MIME_TYPES, AUDIO_MIN_BYTES } from "@/lib/constants";
+import { resolveAudioMimeType } from "@/lib/audio";
+import { AUDIO_MAX_BYTES, AUDIO_MIN_BYTES } from "@/lib/constants";
 import { AudioNotesFieldsSchema } from "@/lib/schema";
 import { getStudyPackGenerator } from "@/lib/server/generatorFactory";
 import { errorResponse, generationResponse, rateLimitResponse } from "@/lib/server/http";
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
   if (audio.size < AUDIO_MIN_BYTES) return errorResponse(400, "The recording is too short to make notes from.");
 
   // The type is declared by the client; the AI service rejects files that are not really audio.
-  const mimeType = AUDIO_MIME_TYPES[audio.type.split(";")[0].trim().toLowerCase()];
+  const mimeType = resolveAudioMimeType(audio.type, audio.name);
   if (!mimeType) return errorResponse(415, "This audio format is not supported.");
 
   const fields = AudioNotesFieldsSchema.safeParse({
