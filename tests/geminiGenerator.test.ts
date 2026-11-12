@@ -26,7 +26,7 @@ const okReply = { text: JSON.stringify(SAMPLE_PACK), candidates: [{ finishReason
 describe("GeminiStudyPackGenerator", () => {
   it("returns the parsed study pack and asks for schema-constrained JSON", async () => {
     const { client, calls } = fakeClient(() => okReply);
-    const result = await new GeminiStudyPackGenerator(client, "test-model").generate(request);
+    const result = await new GeminiStudyPackGenerator(client, ["test-model"]).generate(request);
 
     expect(result).toEqual({ pack: SAMPLE_PACK, demo: false });
     expect(calls[0].model).toBe("test-model");
@@ -44,7 +44,7 @@ describe("GeminiStudyPackGenerator", () => {
     ["JSON of the wrong shape", { text: '{"title":1}', candidates: [{ finishReason: FinishReason.STOP }] }, "unavailable"],
   ])("reports %s as %s", async (_name, reply, code) => {
     const { client } = fakeClient(() => reply);
-    await expect(new GeminiStudyPackGenerator(client).generate(request)).rejects.toMatchObject({ code });
+    await expect(new GeminiStudyPackGenerator(client, ["test-model"]).generate(request)).rejects.toMatchObject({ code });
   });
 
   it.each([
@@ -56,7 +56,7 @@ describe("GeminiStudyPackGenerator", () => {
     const { client } = fakeClient(() => {
       throw new ApiError({ status, message });
     });
-    await expect(new GeminiStudyPackGenerator(client).generate(request)).rejects.toMatchObject({ code });
+    await expect(new GeminiStudyPackGenerator(client, ["test-model"]).generate(request)).rejects.toMatchObject({ code });
   });
 
   it("gives up with a timeout error when the AI does not answer", async () => {
@@ -69,7 +69,30 @@ describe("GeminiStudyPackGenerator", () => {
       },
     } as unknown as GoogleGenAI;
 
-    const generator = new GeminiStudyPackGenerator(client, "test-model", 20);
+    const generator = new GeminiStudyPackGenerator(client, ["test-model"], 20);
     await expect(generator.generate(request)).rejects.toMatchObject({ code: "timeout" });
+  });
+
+  it("falls back to the next model when one is overloaded", async () => {
+    let attempt = 0;
+    const { client, calls } = fakeClient(() => {
+      if (attempt++ === 0) throw new ApiError({ status: 503, message: "high demand" });
+      return okReply;
+    });
+
+    const result = await new GeminiStudyPackGenerator(client, ["busy-model", "free-model"]).generate(request);
+
+    expect(result.pack).toEqual(SAMPLE_PACK);
+    expect(calls.map((c) => c.model)).toEqual(["busy-model", "free-model"]);
+  });
+
+  it("does not try other models when the key is wrong", async () => {
+    const { client, calls } = fakeClient(() => {
+      throw new ApiError({ status: 400, message: "API key not valid." });
+    });
+
+    const generator = new GeminiStudyPackGenerator(client, ["a", "b"]);
+    await expect(generator.generate(request)).rejects.toMatchObject({ code: "misconfigured" });
+    expect(calls).toHaveLength(1);
   });
 });

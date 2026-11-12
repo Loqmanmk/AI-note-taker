@@ -20,7 +20,7 @@ The app picks its AI provider from the key it finds in `.env.local`:
 
 | Key set | Provider | Cost |
 |---|---|---|
-| `GEMINI_API_KEY` | Google Gemini (`gemini-3.8-flash`, change with `GEMINI_MODEL`) | Free tier, with daily limits. Get a key at https://aistudio.google.com/apikey |
+| `GEMINI_API_KEY` | Google Gemini (tries `gemini-3.8-flash`, then `gemini-3.5-flash`, then `gemini-2.5-flash` if one is busy; change the list with `GEMINI_MODEL`) | Free tier, with daily limits. Get a key at https://aistudio.google.com/apikey |
 | `ANTHROPIC_API_KEY` | Claude | Paid |
 | none | Demo mode: always shows the same example study pack | Free |
 
@@ -35,6 +35,7 @@ If both keys are set, Gemini is used. On Gemini's free tier, Google may use the 
 | `npm run lint` | Check code style |
 | `npm run typecheck` | Check TypeScript types |
 | `npm test` | Run the unit tests |
+| `npm run check:ai` | Check that the Gemini key works and which models answer |
 
 ## Project structure
 
