@@ -36,7 +36,9 @@ The app finds the server by itself: it uses the address of the computer that run
 src/app/          Screens (Expo Router): index.tsx records, class/[id].tsx shows the notes
 src/components/   Interface pieces
 src/hooks/        useClassRecorder, useClassHistory
-src/lib/          Server client, storage on the phone, colours
+src/components/record/   Record button, sound meter, "I'm lost" button
+src/components/results/  Class header, section tabs and each tab of the study pack
+src/lib/          Server client, storage on the phone, preferences, theme (colours, Manrope font)
 ../lib/           Data model and logic shared with the web app (imported as @shared/…)
 ```
 
