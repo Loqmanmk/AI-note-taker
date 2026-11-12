@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { File as LocalFile } from "expo-file-system";
 import { Platform } from "react-native";
 import type { NoteLanguage } from "@shared/constants";
 import { NotesResponseSchema, type NotesResponse } from "@shared/schema";
@@ -46,7 +47,9 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
   let res: Response;
   try {
     res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init });
-  } catch {
+  } catch (err) {
+    // Shown in the Expo terminal on the computer, so the real cause can be diagnosed.
+    console.warn(`[api] ${path} failed:`, err);
     // Naming the address lets the student test it in the phone's browser.
     throw new Error(
       `Could not reach the server at ${baseUrl}. Check that the server is running on your computer, ` +
@@ -73,10 +76,11 @@ async function appendRecording(form: FormData, uri: string) {
     form.append("audio", blob, "class.webm");
     return;
   }
-  // React Native uploads a local file when given its uri, name and type.
-  // Android refuses the upload when the path has no file:// scheme.
-  const fileUri = uri.includes("://") ? uri : `file://${uri}`;
-  form.append("audio", { uri: fileUri, name: "class.m4a", type: "audio/mp4" } as unknown as Blob);
+  // Expo's fetch reads the file from its bytes; it does not accept React Native's
+  // { uri, name, type } objects. The server also recognises the type from the .m4a name.
+  const file = new LocalFile(uri);
+  if (!file.exists) throw new Error("The recording could not be found on the phone. Record the class again.");
+  form.append("audio", file);
 }
 
 export async function requestStudyPackFromRecording(
