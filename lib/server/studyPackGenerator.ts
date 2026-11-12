@@ -11,7 +11,10 @@ export interface StudyPackGenerator {
   generate(request: NotesRequest): Promise<GenerationResult>;
 }
 
-export type GenerationErrorCode = "declined" | "too_long" | "rate_limited" | "misconfigured" | "unavailable";
+export type GenerationErrorCode = "declined" | "too_long" | "rate_limited" | "misconfigured" | "unavailable" | "timeout";
+
+/** How long to wait for the AI before giving up, so the student is never left waiting forever. */
+export const GENERATION_TIMEOUT_MS = 120_000;
 
 /** A failure the user can be told about. Anything else is a bug and stays a 500. */
 export class GenerationError extends Error {

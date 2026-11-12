@@ -3,12 +3,17 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { StudyPackSchema, sanitizeStudyPack, type NotesRequest } from "../schema";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
-import { GenerationError, type GenerationResult, type StudyPackGenerator } from "./studyPackGenerator";
+import {
+  GENERATION_TIMEOUT_MS,
+  GenerationError,
+  type GenerationResult,
+  type StudyPackGenerator,
+} from "./studyPackGenerator";
 
 const MODEL = "claude-opus-5-5";
 
 export class ClaudeStudyPackGenerator implements StudyPackGenerator {
-  constructor(private readonly client: Anthropic = new Anthropic()) {}
+  constructor(private readonly client: Anthropic = new Anthropic({ timeout: GENERATION_TIMEOUT_MS, maxRetries: 0 })) {}
 
   async generate(request: NotesRequest): Promise<GenerationResult> {
     const response = await this.callModel(request);
@@ -39,6 +44,9 @@ export class ClaudeStudyPackGenerator implements StudyPackGenerator {
       }
       if (err instanceof Anthropic.RateLimitError) {
         throw new GenerationError("rate_limited", { cause: err });
+      }
+      if (err instanceof Anthropic.APIConnectionTimeoutError) {
+        throw new GenerationError("timeout", { cause: err });
       }
       if (err instanceof Anthropic.APIError) {
         throw new GenerationError("unavailable", { cause: err });
