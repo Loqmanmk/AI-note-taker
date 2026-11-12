@@ -3,6 +3,16 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+/** The browser talks to Supabase directly for sign-in and saved classes. */
+function originOf(url: string | undefined): string | undefined {
+  try {
+    return url ? new URL(url).origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+const supabaseOrigin = originOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
+
 // Next.js injects small inline scripts, and its dev server needs eval for hot reload.
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -10,7 +20,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",
-  `connect-src 'self'${isDev ? " ws:" : ""}`,
+  `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin}` : ""}${isDev ? " ws:" : ""}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

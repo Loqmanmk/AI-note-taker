@@ -64,7 +64,12 @@ export const AudioNotesFieldsSchema = z.object({
 });
 export type AudioNotesFields = z.infer<typeof AudioNotesFieldsSchema>;
 
-export const NotesResponseSchema = z.object({ pack: StudyPackSchema, demo: z.boolean() });
+export const NotesResponseSchema = z.object({
+  pack: StudyPackSchema,
+  demo: z.boolean(),
+  /** Set when the class was saved to the student's account. */
+  classId: z.string().optional(),
+});
 export type NotesResponse = z.infer<typeof NotesResponseSchema>;
 
 /** A study pack saved in the browser. */

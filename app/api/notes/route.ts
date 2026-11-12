@@ -1,7 +1,7 @@
 import { TRANSCRIPT_MAX_CHARS } from "@/lib/constants";
 import { NotesRequestSchema } from "@/lib/schema";
 import { getStudyPackGenerator } from "@/lib/server/generatorFactory";
-import { errorResponse, generationResponse, rateLimitResponse } from "@/lib/server/http";
+import { admitRequest, errorResponse, generationResponse } from "@/lib/server/http";
 
 export const maxDuration = 300;
 
@@ -14,8 +14,8 @@ export async function POST(req: Request) {
     return errorResponse(415, "Send the transcript as JSON.");
   }
 
-  const limited = rateLimitResponse(req);
-  if (limited) return limited;
+  const admitted = await admitRequest(req);
+  if (admitted instanceof Response) return admitted;
 
   const raw = await req.text();
   if (raw.length > MAX_BODY_CHARS) return errorResponse(413, "The transcript is too long.");
@@ -32,5 +32,5 @@ export async function POST(req: Request) {
     return errorResponse(400, parsed.error.issues[0]?.message ?? "Invalid request.");
   }
 
-  return generationResponse(() => getStudyPackGenerator().generate(parsed.data));
+  return generationResponse(admitted.user, () => getStudyPackGenerator().generate(parsed.data));
 }

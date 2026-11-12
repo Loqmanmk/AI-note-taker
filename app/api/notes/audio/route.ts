@@ -2,7 +2,7 @@ import { resolveAudioMimeType } from "@/lib/audio";
 import { AUDIO_MAX_BYTES, AUDIO_MIN_BYTES } from "@/lib/constants";
 import { AudioNotesFieldsSchema } from "@/lib/schema";
 import { getStudyPackGenerator } from "@/lib/server/generatorFactory";
-import { errorResponse, generationResponse, rateLimitResponse } from "@/lib/server/http";
+import { admitRequest, errorResponse, generationResponse } from "@/lib/server/http";
 import { supportsAudio } from "@/lib/server/studyPackGenerator";
 
 export const maxDuration = 300;
@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     return errorResponse(413, "The recording is too long. Split the class into two parts.");
   }
 
-  const limited = rateLimitResponse(req);
-  if (limited) return limited;
+  const admitted = await admitRequest(req);
+  if (admitted instanceof Response) return admitted;
 
   const generator = getStudyPackGenerator();
   if (!supportsAudio(generator)) {
@@ -66,5 +66,5 @@ export async function POST(req: Request) {
     return errorResponse(400, fields.error.issues[0]?.message ?? "Invalid request.");
   }
 
-  return generationResponse(() => generator.generateFromAudio({ ...fields.data, audio, mimeType }));
+  return generationResponse(admitted.user, () => generator.generateFromAudio({ ...fields.data, audio, mimeType }));
 }

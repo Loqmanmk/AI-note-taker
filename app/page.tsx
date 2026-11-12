@@ -2,15 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { SignInScreen } from "@/components/SignInScreen";
 import { HistoryList } from "@/components/HistoryList";
 import { Recorder } from "@/components/Recorder";
 import { Tabs } from "@/components/Tabs";
 import { TranscriptPaste } from "@/components/TranscriptPaste";
 import { Results } from "@/components/results/Results";
+import { useAuth } from "@/hooks/useAuth";
 import { useClassHistory } from "@/hooks/useClassHistory";
+import { useCloudClasses } from "@/hooks/useCloudClasses";
 import { useSpeechRecorder } from "@/hooks/useSpeechRecorder";
 import { useUnsavedWarning } from "@/hooks/useUnsavedWarning";
-import { requestStudyPack } from "@/lib/client/notesApi";
+import { SignInRequiredError, requestStudyPack } from "@/lib/client/notesApi";
 import { NOTE_LANGUAGES, TRANSCRIPT_MIN_CHARS, type NoteLanguage } from "@/lib/constants";
 import type { SavedClass } from "@/lib/schema";
 import { buildTimeline, timelineToText } from "@/lib/transcript";
@@ -24,7 +27,11 @@ const INPUT_MODES = [
 
 export default function Home() {
   const recorder = useSpeechRecorder();
-  const history = useClassHistory();
+  const auth = useAuth();
+  const localHistory = useClassHistory();
+  const cloudHistory = useCloudClasses(auth.session?.user.id);
+  // With accounts on, classes live in the student's account; otherwise in this browser.
+  const history = auth.enabled ? cloudHistory : localHistory;
 
   const [mode, setMode] = useState<InputMode>("record");
   const [pasted, setPasted] = useState("");
@@ -54,22 +61,34 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      const { pack, demo } = await requestStudyPack({ transcript, language: noteLanguage });
-      const saved: SavedClass = { id: crypto.randomUUID(), date: new Date().toISOString(), pack, demo };
+      const { pack, demo, classId } = await requestStudyPack(
+        { transcript, language: noteLanguage },
+        auth.session?.access_token,
+      );
+      const saved: SavedClass = { id: classId ?? crypto.randomUUID(), date: new Date().toISOString(), pack, demo };
       if (!demo) history.add(saved);
       setOpenClass(saved);
       clearInput();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+      // The transcript stays on screen, so the student can sign in again and retry.
+      if (err instanceof SignInRequiredError) await auth.signOut();
     } finally {
       setLoading(false);
     }
   }
 
+  if (auth.enabled && auth.loading) return <main className="shell" aria-busy="true" />;
+  if (auth.enabled && !auth.session) return <SignInScreen onSignIn={auth.signIn} error={auth.error || error} />;
+
+  const account = auth.session
+    ? { email: auth.session.user.email ?? "Signed in", onSignOut: auth.signOut }
+    : undefined;
+
   if (openClass) {
     return (
       <main className="shell">
-        <AppHeader />
+        <AppHeader account={account} />
         <Results key={openClass.id} saved={openClass} onBack={() => setOpenClass(null)} />
       </main>
     );
@@ -77,7 +96,7 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <AppHeader />
+      <AppHeader account={account} />
       <h1>Record your class. Know what to study.</h1>
       <p className="lede">
         FocusNotes listens to your teacher, writes your notes, and tells you what matters most for the exam.
@@ -140,6 +159,11 @@ export default function Home() {
         )}
       </div>
 
+      {auth.enabled && cloudHistory.error && (
+        <p className="error" role="alert">
+          {cloudHistory.error}
+        </p>
+      )}
       <HistoryList items={history.items} onOpen={setOpenClass} onDelete={history.remove} />
     </main>
   );
