@@ -1,41 +1,51 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { NOTE_LANGUAGES, type NoteLanguage } from "@shared/constants";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SAMPLE_TRANSCRIPT } from "@shared/sample";
 import type { NotesResponse } from "@shared/schema";
-import { Chips } from "@/components/Chips";
 import { HistoryList } from "@/components/HistoryList";
-import { RecorderCard } from "@/components/RecorderCard";
+import { LanguagePicker } from "@/components/LanguagePicker";
+import { ProcessingCard, RECORDING_STEPS, TRANSCRIPT_STEPS, type ProcessingStep } from "@/components/ProcessingCard";
+import { RecorderPanel } from "@/components/record/RecorderPanel";
 import { ServerStatusBanner } from "@/components/ServerStatusBanner";
-import { Button, Txt } from "@/components/ui";
+import { Button, IconBubble, Txt } from "@/components/ui";
 import { useClassHistory } from "@/hooks/useClassHistory";
 import { useClassRecorder } from "@/hooks/useClassRecorder";
+import { useNoteLanguage } from "@/hooks/useNoteLanguage";
 import { useServerStatus } from "@/hooks/useServerStatus";
 import { requestStudyPackFromRecording, requestStudyPackFromTranscript } from "@/lib/api";
 import { classStore } from "@/lib/classStore";
-import { spacing, useTheme } from "@/lib/theme";
-
-const LANGUAGE_OPTIONS = Object.entries(NOTE_LANGUAGES) as [NoteLanguage, string][];
+import { radius, spacing, useTheme } from "@/lib/theme";
 
 function newClassId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function greeting(now = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const recorder = useClassRecorder();
   const history = useClassHistory();
   const server = useServerStatus();
+  const [language, setLanguage] = useNoteLanguage();
 
-  const [language, setLanguage] = useState<NoteLanguage>("auto");
-  const [loading, setLoading] = useState(false);
+  const [processing, setProcessing] = useState<ProcessingStep[] | null>(null);
   const [error, setError] = useState("");
 
   /** Runs a request for notes, saves the result and opens it. */
-  async function createNotes(request: () => Promise<NotesResponse>): Promise<boolean> {
-    setLoading(true);
+  async function createNotes(steps: ProcessingStep[], request: () => Promise<NotesResponse>): Promise<boolean> {
+    setProcessing(steps);
     setError("");
     try {
       const { pack, demo } = await request();
@@ -48,7 +58,7 @@ export default function HomeScreen() {
       server.retry();
       return false;
     } finally {
-      setLoading(false);
+      setProcessing(null);
     }
   }
 
@@ -56,76 +66,99 @@ export default function HomeScreen() {
     const recording = recorder.recording;
     if (!recording) return;
     // The recording is only discarded once the notes exist, so a failed upload can be retried.
-    if (await createNotes(() => requestStudyPackFromRecording(recording, language))) recorder.discard();
+    const created = await createNotes(RECORDING_STEPS, () => requestStudyPackFromRecording(recording, language));
+    if (created) recorder.discard();
+  }
+
+  function tryExample() {
+    createNotes(TRANSCRIPT_STEPS, () => requestStudyPackFromTranscript(SAMPLE_TRANSCRIPT, language));
   }
 
   function confirmDiscard() {
-    Alert.alert("Discard this recording?", "The audio will be lost.", [
-      { text: "Keep", style: "cancel" },
+    Alert.alert("Discard this recording?", "The audio will be deleted and cannot be recovered.", [
+      { text: "Keep it", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: recorder.discard },
     ]);
   }
 
+  const busy = processing !== null;
   const shownError = error || recorder.error;
+  const title = busy
+    ? "Writing your notes"
+    : { idle: "Ready for class?", recording: "Listening to your class", recorded: "Your recording is ready" }[
+        recorder.phase
+      ];
 
   return (
-    <ScrollView contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
-      <Txt variant="title">Record your class. Know what to study.</Txt>
-      <Txt variant="muted" style={styles.lede}>
-        FocusNotes listens to your teacher, writes your notes, and tells you what matters most for the exam.
+    <ScrollView
+      contentContainerStyle={[styles.screen, { paddingTop: insets.top + spacing.lg }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.brand}>
+        <LinearGradient colors={[theme.gradient[0], theme.gradient[1]]} style={styles.logo}>
+          <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+        </LinearGradient>
+        <Txt variant="label" tone="muted">
+          FocusNotes
+        </Txt>
+      </View>
+
+      <Txt variant="small" style={styles.greeting}>
+        {greeting()}
+      </Txt>
+      <Txt variant="display" style={styles.title}>
+        {title}
       </Txt>
 
       <ServerStatusBanner status={server.status} onRetry={server.retry} />
 
-      <RecorderCard recorder={recorder} />
+      <RecorderPanel recorder={recorder} disabled={busy} />
 
-      <Txt variant="small">Notes language</Txt>
-      <Chips label="Notes language" options={LANGUAGE_OPTIONS} selected={language} onSelect={setLanguage} />
-
-      {recorder.phase === "recorded" && !loading && (
-        <View style={styles.actions}>
-          <Button label="Discard" onPress={confirmDiscard} />
-          <Button kind="primary" label="Create my notes" onPress={createFromRecording} style={styles.grow} />
+      {recorder.phase === "recorded" && !busy && (
+        <View style={styles.next}>
+          <LanguagePicker value={language} onChange={setLanguage} />
+          <Button kind="primary" icon="sparkles" label="Create my notes" onPress={createFromRecording} />
+          <Button kind="ghost" icon="trash-outline" label="Discard recording" onPress={confirmDiscard} />
         </View>
       )}
 
-      {loading && (
-        <View style={styles.loading} accessibilityLiveRegion="polite">
-          <ActivityIndicator color={theme.accent} />
-          <Txt variant="muted" style={styles.grow}>
-            Writing your notes. This usually takes about a minute, longer for a long class.
+      {processing && <ProcessingCard steps={processing} />}
+
+      {shownError !== "" && !busy && (
+        <View style={[styles.error, { backgroundColor: theme.highSoft }]} accessibilityRole="alert">
+          <IconBubble name="alert-circle" color={theme.high} background={theme.card} size={32} />
+          <Txt variant="small" color={theme.high} style={styles.grow}>
+            {shownError}
           </Txt>
         </View>
       )}
 
-      {shownError !== "" && (
-        <View style={[styles.error, { backgroundColor: theme.high + "1a" }]} accessibilityRole="alert">
-          <Txt style={{ color: theme.high }}>{shownError}</Txt>
-        </View>
-      )}
-
-      {recorder.phase === "idle" && !loading && (
-        <Button
-          kind="link"
-          label="Try with an example class (no recording)"
-          onPress={() => createNotes(() => requestStudyPackFromTranscript(SAMPLE_TRANSCRIPT, language))}
+      {recorder.phase !== "recording" && !busy && (
+        <HistoryList
+          items={history.items}
+          onOpen={(id) => router.push({ pathname: "/class/[id]", params: { id } })}
+          onDelete={history.remove}
+          onTryExample={tryExample}
         />
       )}
-
-      <HistoryList
-        items={history.items}
-        onOpen={(id) => router.push({ pathname: "/class/[id]", params: { id } })}
-        onDelete={history.remove}
-      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: spacing.lg, paddingBottom: 60 },
-  lede: { marginTop: spacing.sm, marginBottom: spacing.xl },
-  actions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
+  screen: { paddingHorizontal: spacing.lg, paddingBottom: 64 },
+  brand: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xl },
+  logo: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  greeting: { marginBottom: 2 },
+  title: { marginBottom: spacing.xl },
+  next: { gap: spacing.md, marginTop: spacing.sm },
+  error: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
   grow: { flex: 1 },
-  loading: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.lg },
-  error: { borderRadius: 10, padding: spacing.md, marginTop: spacing.md },
 });

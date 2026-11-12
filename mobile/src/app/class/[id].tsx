@@ -1,16 +1,17 @@
-import { useMemo, useState } from "react";
-import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { ScrollView, Share, StyleSheet, View, type ScrollViewInstance } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { studyPackToMarkdown } from "@shared/markdown";
 import { scoreQuiz, type QuizAnswers } from "@shared/quiz";
-import { Chips } from "@/components/Chips";
+import { ClassHero } from "@/components/results/ClassHero";
 import { FocusTab } from "@/components/results/FocusTab";
 import { LostMomentsTab } from "@/components/results/LostMomentsTab";
 import { NotesTab } from "@/components/results/NotesTab";
 import { QuizTab } from "@/components/results/QuizTab";
-import { Button, Card, Txt } from "@/components/ui";
+import { SectionTabs, type SectionTab } from "@/components/results/SectionTabs";
+import { Card, IconBubble, IconButton, Txt } from "@/components/ui";
 import { classStore } from "@/lib/classStore";
-import { spacing, useTheme } from "@/lib/theme";
+import { radius, spacing, useTheme } from "@/lib/theme";
 
 type TabId = "focus" | "notes" | "quiz" | "lost" | "summary";
 
@@ -21,75 +22,121 @@ export default function ClassScreen() {
 
   const [tab, setTab] = useState<TabId>("focus");
   const [answers, setAnswers] = useState<QuizAnswers>({});
+  const [quizIndex, setQuizIndex] = useState(0);
+  const scroller = useRef<ScrollViewInstance>(null);
+  const scrollY = useRef(0);
+  const heroHeight = useRef(0);
   const score = useMemo(() => scoreQuiz(saved?.pack.quiz ?? [], answers), [saved, answers]);
 
   if (!saved) {
     return (
-      <View style={styles.screen}>
-        <Txt variant="muted">This class is no longer on this phone.</Txt>
+      <View style={styles.missing}>
+        <IconBubble name="document-outline" color={theme.muted} background={theme.cardAlt} size={56} />
+        <Txt tone="muted">This class is no longer on this phone.</Txt>
       </View>
     );
   }
 
   const { pack, demo } = saved;
-  const tabs = [
-    ["focus", "Focus"],
-    ["notes", "Notes"],
-    ["quiz", score.answered ? `Quiz ${score.correct}/${pack.quiz.length}` : "Quiz"],
-    ["lost", pack.lost_moments.length ? `Lost moments (${pack.lost_moments.length})` : "Lost moments"],
-    ["summary", "Summary"],
-  ] as const;
+  const quizDone = quizIndex >= pack.quiz.length;
+  const tabs: SectionTab<TabId>[] = [
+    { id: "focus", label: "Focus", icon: "flame" },
+    { id: "notes", label: "Notes", icon: "document-text" },
+    {
+      id: "quiz",
+      label: "Quiz",
+      icon: "help-circle",
+      badge: quizDone && pack.quiz.length ? `${score.correct}/${pack.quiz.length}` : undefined,
+    },
+    {
+      id: "lost",
+      label: "Lost",
+      icon: "help-buoy",
+      badge: pack.lost_moments.length ? String(pack.lost_moments.length) : undefined,
+    },
+    { id: "summary", label: "Summary", icon: "reader" },
+  ];
+
+  /** Switches section; if the student had scrolled into the content, brings the tabs back to the top. */
+  function selectTab(next: TabId) {
+    setTab(next);
+    if (scrollY.current > heroHeight.current) {
+      scroller.current?.scrollTo({ y: heroHeight.current, animated: false });
+    }
+  }
+
+  function share() {
+    Share.share({ title: pack.title, message: studyPackToMarkdown(pack) }).catch(() => {});
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
-      <Stack.Screen options={{ title: pack.subject || "Your notes" }} />
-
-      {demo && (
-        <View style={[styles.banner, { backgroundColor: theme.medium + "1f" }]}>
-          <Txt style={{ color: theme.medium }}>
-            Demo mode: the server has no AI key, so this is a fixed example and not based on your recording.
-          </Txt>
-        </View>
-      )}
-
-      <Text style={[styles.eyebrow, { color: theme.accent }]}>{pack.subject}</Text>
-      <Txt variant="title">{pack.title}</Txt>
-
-      <View style={styles.tabs}>
-        <Chips label="Study pack sections" options={tabs} selected={tab} onSelect={setTab} />
-      </View>
-
-      {tab === "focus" && <FocusTab pack={pack} missedTopics={score.missedTopics} />}
-      {tab === "notes" && <NotesTab pack={pack} />}
-      {tab === "quiz" && (
-        <QuizTab
-          quiz={pack.quiz}
-          answers={answers}
-          onAnswer={(question, option) => setAnswers((prev) => ({ ...prev, [question]: option }))}
-        />
-      )}
-      {tab === "lost" && <LostMomentsTab moments={pack.lost_moments} />}
-      {tab === "summary" && (
-        <Card>
-          <Txt>{pack.summary}</Txt>
-        </Card>
-      )}
-
-      <Button
-        label="Share notes"
-        onPress={() => {
-          Share.share({ title: pack.title, message: studyPackToMarkdown(pack) }).catch(() => {});
+    <>
+      <Stack.Screen
+        options={{
+          title: "",
+          headerRight: () => <IconButton icon="share-outline" label="Share notes" onPress={share} />,
         }}
-        style={styles.share}
       />
-    </ScrollView>
+      {/* Index 1 (the tabs) sticks to the top while the content scrolls. */}
+      <ScrollView
+        ref={scroller}
+        contentContainerStyle={styles.screen}
+        stickyHeaderIndices={[1]}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+        }}
+      >
+        <View onLayout={(e) => (heroHeight.current = e.nativeEvent.layout.height)}>
+          {demo && (
+            <View style={[styles.banner, { backgroundColor: theme.mediumSoft }]}>
+              <Txt variant="small" color={theme.medium}>
+                Demo mode: the server has no AI key, so this is a fixed example and not based on your recording.
+              </Txt>
+            </View>
+          )}
+          <ClassHero saved={saved} />
+        </View>
+
+        <SectionTabs tabs={tabs} selected={tab} onSelect={selectTab} />
+
+        <View>
+          {tab === "focus" && <FocusTab pack={pack} missedTopics={score.missedTopics} />}
+          {tab === "notes" && <NotesTab pack={pack} />}
+          {tab === "quiz" && (
+            <QuizTab
+              quiz={pack.quiz}
+              answers={answers}
+              score={score}
+              index={quizIndex}
+              onAnswer={(question, option) => setAnswers((prev) => ({ ...prev, [question]: option }))}
+              onNext={() => setQuizIndex((i) => i + 1)}
+              onRestart={() => {
+                setAnswers({});
+                setQuizIndex(0);
+              }}
+              onReviewFocus={() => selectTab("focus")}
+            />
+          )}
+          {tab === "lost" && <LostMomentsTab moments={pack.lost_moments} />}
+          {tab === "summary" && (
+            <Card>
+              <Txt variant="caption" style={styles.summaryLabel}>
+                In short
+              </Txt>
+              <Txt style={styles.summary}>{pack.summary}</Txt>
+            </Card>
+          )}
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: spacing.lg, paddingBottom: 60 },
-  banner: { borderRadius: 10, padding: spacing.md, marginBottom: spacing.lg },
-  eyebrow: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.xs },
-  tabs: { marginVertical: spacing.md },
-  share: { marginTop: spacing.md },
+  screen: { paddingHorizontal: spacing.lg, paddingBottom: 64 },
+  missing: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
+  banner: { borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  summaryLabel: { marginBottom: spacing.sm },
+  summary: { fontSize: 17, lineHeight: 27 },
 });
