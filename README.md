@@ -26,6 +26,10 @@ The app picks its AI provider from the key it finds in `.env.local`:
 
 If both keys are set, Gemini is used. On Gemini's free tier, Google may use the content you send to improve its products, so do not use it for private recordings.
 
+## Mobile app
+
+The Android and iOS app lives in [`mobile/`](mobile/README.md). It records audio on the phone and uses this project as its server, through `POST /api/notes/audio`.
+
 ## Scripts
 
 | Command | What it does |
@@ -42,7 +46,8 @@ If both keys are set, Gemini is used. On Gemini's free tier, Google may use the 
 ```
 app/
   page.tsx              Home screen: wires the hooks and components together
-  api/notes/route.ts    POST /api/notes: validation, rate limit, error mapping
+  api/notes/route.ts    POST /api/notes: notes from text
+  api/notes/audio/      POST /api/notes/audio: notes from a recording (used by the mobile app)
 components/             One file per piece of interface (Recorder, Tabs, results/…)
 hooks/                  useSpeechRecorder, useClassHistory, useUnsavedWarning
 lib/
@@ -52,6 +57,7 @@ lib/
   client/               Browser-only code: API client, saved classes
   server/               Server-only code: AI generator, prompt, rate limiter
 tests/                  Unit tests for everything in lib/
+mobile/                 The Android and iOS app (Expo)
 ```
 
 Design rules the code follows:
@@ -63,7 +69,8 @@ Design rules the code follows:
 ## Security
 
 - The API keys live only on the server (`.env.local`, never committed) and are never sent to the browser.
-- Every request is validated (type, size, allowed languages) before it reaches the AI.
+- Every request is validated (type, size, allowed languages, audio format) before it reaches the AI.
+- Recordings are sent to the AI service for one request and deleted from it straight after.
 - Requests are rate limited per client (10 every 10 minutes). The limiter is in memory, so replace it with a shared store such as Redis before running more than one server instance.
 - The transcript is passed to the AI as data inside tags, and the prompt tells the model not to follow instructions found in it.
 - AI output is checked against the schema, and quiz questions that cannot be graded are dropped.
