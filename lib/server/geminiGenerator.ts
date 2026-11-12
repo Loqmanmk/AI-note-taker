@@ -1,10 +1,21 @@
 import "server-only";
-import { ApiError, FinishReason, GoogleGenAI } from "@google/genai";
+import {
+  ApiError,
+  FileState,
+  FinishReason,
+  GoogleGenAI,
+  createPartFromUri,
+  createUserContent,
+  type ContentListUnion,
+  type File as GeminiFile,
+} from "@google/genai";
 import { z } from "zod";
 import { StudyPackSchema, sanitizeStudyPack, type NotesRequest } from "../schema";
-import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { SYSTEM_PROMPT, buildAudioMessage, buildUserMessage } from "./prompt";
 import {
   GenerationError,
+  type AudioNotesRequest,
+  type AudioStudyPackGenerator,
   type GenerationErrorCode,
   type GenerationResult,
   type StudyPackGenerator,
@@ -15,7 +26,19 @@ import {
  * a time, so when one does not answer the next one usually does.
  */
 const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
-const ATTEMPT_TIMEOUT_MS = 60_000;
+
+export type GeminiTimeouts = {
+  /** One attempt at writing notes from text. */
+  textMs: number;
+  /** One attempt at writing notes from a recording, which takes longer to listen to. */
+  audioMs: number;
+  /** Uploading a recording and waiting for Google to finish processing it. */
+  uploadMs: number;
+  /** Pause between checks while a recording is being processed. */
+  pollMs: number;
+};
+
+const DEFAULT_TIMEOUTS: GeminiTimeouts = { textMs: 60_000, audioMs: 120_000, uploadMs: 120_000, pollMs: 2_000 };
 
 /** A wrong key fails on every model, so there is no point trying the others. */
 const NEVER_RETRY: GenerationErrorCode[] = ["misconfigured"];
@@ -35,28 +58,49 @@ function buildResponseSchema() {
   return schema;
 }
 
-export class GeminiStudyPackGenerator implements StudyPackGenerator {
+export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyPackGenerator {
   private readonly responseSchema = buildResponseSchema();
+  private readonly timeouts: GeminiTimeouts;
+
+  /** The model that answered last time. It is tried first, so a busy model only costs one wait. */
+  private preferredModel: string | undefined;
 
   constructor(
     private readonly client: GoogleGenAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }),
     private readonly models: string[] = modelsFromEnv(),
-    private readonly attemptTimeoutMs: number = ATTEMPT_TIMEOUT_MS,
-  ) {}
+    timeouts: Partial<GeminiTimeouts> = {},
+  ) {
+    this.timeouts = { ...DEFAULT_TIMEOUTS, ...timeouts };
+  }
 
-  /** The model that answered last time. It is tried first, so a busy model only costs one wait. */
-  private preferredModel: string | undefined;
+  generate(request: NotesRequest): Promise<GenerationResult> {
+    return this.generateWithFallback(buildUserMessage(request), this.timeouts.textMs);
+  }
+
+  async generateFromAudio(request: AudioNotesRequest): Promise<GenerationResult> {
+    const file = await this.uploadAudio(request);
+    try {
+      const contents = createUserContent([
+        createPartFromUri(file.uri ?? "", file.mimeType ?? request.mimeType),
+        buildAudioMessage(request),
+      ]);
+      return await this.generateWithFallback(contents, this.timeouts.audioMs);
+    } finally {
+      // The recording is only needed for this one request; do not leave it on Google's servers.
+      if (file.name) await this.client.files.delete({ name: file.name }).catch(() => {});
+    }
+  }
 
   /**
    * Tries each model in turn and returns the first good answer.
    * A model failing is logged for the operator and is invisible to the student;
    * an error is only reported when every model has failed.
    */
-  async generate(request: NotesRequest): Promise<GenerationResult> {
+  private async generateWithFallback(contents: ContentListUnion, timeoutMs: number): Promise<GenerationResult> {
     let lastError: unknown;
     for (const model of this.modelsInOrder()) {
       try {
-        const result = await this.generateWith(model, request);
+        const result = await this.generateWith(model, contents, timeoutMs);
         this.preferredModel = model;
         return result;
       } catch (err) {
@@ -74,8 +118,19 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator {
     return [preferred, ...this.models.filter((model) => model !== preferred)];
   }
 
-  private async generateWith(model: string, request: NotesRequest): Promise<GenerationResult> {
-    const response = await this.callModel(model, request);
+  private async generateWith(model: string, contents: ContentListUnion, timeoutMs: number): Promise<GenerationResult> {
+    const response = await withTimeout(timeoutMs, (abortSignal) =>
+      this.client.models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: "application/json",
+          responseJsonSchema: this.responseSchema,
+          abortSignal,
+        },
+      }),
+    );
     const finishReason = response.candidates?.[0]?.finishReason;
 
     if (response.promptFeedback?.blockReason || finishReason === FinishReason.SAFETY) {
@@ -83,36 +138,53 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator {
     }
     if (finishReason === FinishReason.MAX_TOKENS) throw new GenerationError("too_long");
 
-    return { pack: sanitizeStudyPack(this.parsePack(response.text)), demo: false };
+    return { pack: sanitizeStudyPack(parsePack(response.text)), demo: false };
   }
 
-  private async callModel(model: string, request: NotesRequest) {
-    const timeout = AbortSignal.timeout(this.attemptTimeoutMs);
-    try {
-      return await this.client.models.generateContent({
-        model,
-        contents: buildUserMessage(request),
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          responseMimeType: "application/json",
-          responseJsonSchema: this.responseSchema,
-          abortSignal: timeout,
-        },
-      });
-    } catch (err) {
-      if (timeout.aborted) throw new GenerationError("timeout", { cause: err });
-      if (err instanceof ApiError) throw new GenerationError(classifyApiError(err), { cause: err });
-      throw err;
-    }
-  }
+  /** Sends the recording to Google and waits until it is ready to be listened to. */
+  private uploadAudio({ audio, mimeType }: AudioNotesRequest): Promise<GeminiFile> {
+    return withTimeout(this.timeouts.uploadMs, async (abortSignal) => {
+      let file = await this.client.files.upload({ file: audio, config: { mimeType, abortSignal } });
 
-  /** The model is asked for schema-valid JSON, but its answer is still untrusted input. */
-  private parsePack(text: string | undefined) {
-    try {
-      return StudyPackSchema.parse(JSON.parse(text ?? ""));
-    } catch (err) {
-      throw new GenerationError("unavailable", { cause: err });
-    }
+      while (file.state === FileState.PROCESSING && file.name) {
+        await sleep(this.timeouts.pollMs, abortSignal);
+        file = await this.client.files.get({ name: file.name, config: { abortSignal } });
+      }
+      if (file.state === FileState.FAILED || !file.uri) throw new GenerationError("unavailable");
+      return file;
+    });
+  }
+}
+
+/** Runs one call to Gemini with a time limit, and turns its failures into GenerationErrors. */
+async function withTimeout<T>(timeoutMs: number, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const signal = AbortSignal.timeout(timeoutMs);
+  try {
+    return await run(signal);
+  } catch (err) {
+    if (err instanceof GenerationError) throw err;
+    if (signal.aborted) throw new GenerationError("timeout", { cause: err });
+    if (err instanceof ApiError) throw new GenerationError(classifyApiError(err), { cause: err });
+    throw err;
+  }
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    });
+  });
+}
+
+/** The model is asked for schema-valid JSON, but its answer is still untrusted input. */
+function parsePack(text: string | undefined) {
+  try {
+    return StudyPackSchema.parse(JSON.parse(text ?? ""));
+  } catch (err) {
+    throw new GenerationError("unavailable", { cause: err });
   }
 }
 

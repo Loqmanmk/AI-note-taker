@@ -1,4 +1,4 @@
-import type { NotesRequest, StudyPack } from "../schema";
+import type { AudioNotesFields, NotesRequest, StudyPack } from "../schema";
 
 export type GenerationResult = { pack: StudyPack; demo: boolean };
 
@@ -9,6 +9,20 @@ export type GenerationResult = { pack: StudyPack; demo: boolean };
  */
 export interface StudyPackGenerator {
   generate(request: NotesRequest): Promise<GenerationResult>;
+}
+
+export type AudioNotesRequest = AudioNotesFields & { audio: Blob; mimeType: string };
+
+/**
+ * Turns a recording of a class into a study pack.
+ * Kept separate from StudyPackGenerator because not every AI provider can listen to audio.
+ */
+export interface AudioStudyPackGenerator {
+  generateFromAudio(request: AudioNotesRequest): Promise<GenerationResult>;
+}
+
+export function supportsAudio<T extends object>(generator: T): generator is T & AudioStudyPackGenerator {
+  return typeof (generator as Partial<AudioStudyPackGenerator>).generateFromAudio === "function";
 }
 
 export type GenerationErrorCode = "declined" | "too_long" | "rate_limited" | "misconfigured" | "unavailable" | "timeout";

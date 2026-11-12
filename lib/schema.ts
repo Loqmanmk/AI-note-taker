@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NOTE_LANGUAGE_CODES, TRANSCRIPT_MAX_CHARS, TRANSCRIPT_MIN_CHARS } from "./constants";
+import { LOST_MARKERS_MAX, NOTE_LANGUAGE_CODES, TRANSCRIPT_MAX_CHARS, TRANSCRIPT_MIN_CHARS } from "./constants";
 
 /** Everything the student gets back after a class. Also the shape the AI must fill. */
 export const StudyPackSchema = z.object({
@@ -55,6 +55,14 @@ export const NotesRequestSchema = z.object({
 });
 
 export type NotesRequest = z.infer<typeof NotesRequestSchema>;
+
+/** Text fields sent with a recording to POST /api/notes/audio. */
+export const AudioNotesFieldsSchema = z.object({
+  language: z.enum(NOTE_LANGUAGE_CODES, "Unsupported notes language.").default("auto"),
+  /** Seconds from the start of the recording at which the student pressed "I'm lost". */
+  lostTimes: z.array(z.number().min(0).max(86_400)).max(LOST_MARKERS_MAX).default([]),
+});
+export type AudioNotesFields = z.infer<typeof AudioNotesFieldsSchema>;
 
 export const NotesResponseSchema = z.object({ pack: StudyPackSchema, demo: z.boolean() });
 export type NotesResponse = z.infer<typeof NotesResponseSchema>;
