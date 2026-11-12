@@ -1,3 +1,5 @@
+// Fills in the Web Crypto functions Supabase needs for secure sign-in. Keep this first.
+import "./webCrypto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AppState, Platform } from "react-native";
