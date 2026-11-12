@@ -8,13 +8,23 @@ You need Node.js 22 or newer.
 
 ```bash
 npm install
-cp .env.example .env.local   # then put your Anthropic API key in .env.local
+cp .env.example .env.local   # then put your Gemini API key in .env.local
 npm run dev
 ```
 
 Open http://localhost:3000 in Chrome, Edge or Safari.
 
-Without an API key the app runs in demo mode and always shows the same example study pack.
+### AI provider
+
+The app picks its AI provider from the key it finds in `.env.local`:
+
+| Key set | Provider | Cost |
+|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini (`gemini-3.8-flash`, change with `GEMINI_MODEL`) | Free tier, with daily limits. Get a key at https://aistudio.google.com/apikey |
+| `ANTHROPIC_API_KEY` | Claude | Paid |
+| none | Demo mode: always shows the same example study pack | Free |
+
+If both keys are set, Gemini is used. On Gemini's free tier, Google may use the content you send to improve its products, so do not use it for private recordings.
 
 ## Scripts
 
@@ -46,12 +56,12 @@ tests/                  Unit tests for everything in lib/
 Design rules the code follows:
 
 - Each file has one job. Components only render, hooks hold browser state, `lib/` holds logic that can be tested without a browser.
-- The API route depends on the `StudyPackGenerator` interface, not on a specific AI provider. `ClaudeStudyPackGenerator` and `DemoStudyPackGenerator` are two implementations; adding another provider means adding a class, not editing the route.
+- The API route depends on the `StudyPackGenerator` interface, not on a specific AI provider. `GeminiStudyPackGenerator`, `ClaudeStudyPackGenerator` and `DemoStudyPackGenerator` are three implementations; adding another provider means adding a class, not editing the route.
 - `lib/schema.ts` is the single source of truth for data shapes, used by the server, the browser and the AI output format.
 
 ## Security
 
-- The API key lives only on the server (`.env.local`, never committed) and is never sent to the browser.
+- The API keys live only on the server (`.env.local`, never committed) and are never sent to the browser.
 - Every request is validated (type, size, allowed languages) before it reaches the AI.
 - Requests are rate limited per client (10 every 10 minutes). The limiter is in memory, so replace it with a shared store such as Redis before running more than one server instance.
 - The transcript is passed to the AI as data inside tags, and the prompt tells the model not to follow instructions found in it.
