@@ -7,9 +7,11 @@ import type { NotesResponse } from "@shared/schema";
 import { Chips } from "@/components/Chips";
 import { HistoryList } from "@/components/HistoryList";
 import { RecorderCard } from "@/components/RecorderCard";
+import { ServerStatusBanner } from "@/components/ServerStatusBanner";
 import { Button, Txt } from "@/components/ui";
 import { useClassHistory } from "@/hooks/useClassHistory";
 import { useClassRecorder } from "@/hooks/useClassRecorder";
+import { useServerStatus } from "@/hooks/useServerStatus";
 import { requestStudyPackFromRecording, requestStudyPackFromTranscript } from "@/lib/api";
 import { classStore } from "@/lib/classStore";
 import { spacing, useTheme } from "@/lib/theme";
@@ -25,6 +27,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const recorder = useClassRecorder();
   const history = useClassHistory();
+  const server = useServerStatus();
 
   const [language, setLanguage] = useState<NoteLanguage>("auto");
   const [loading, setLoading] = useState(false);
@@ -42,6 +45,7 @@ export default function HomeScreen() {
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+      server.retry();
       return false;
     } finally {
       setLoading(false);
@@ -70,6 +74,8 @@ export default function HomeScreen() {
       <Txt variant="muted" style={styles.lede}>
         FocusNotes listens to your teacher, writes your notes, and tells you what matters most for the exam.
       </Txt>
+
+      <ServerStatusBanner status={server.status} onRetry={server.retry} />
 
       <RecorderCard recorder={recorder} />
 
