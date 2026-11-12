@@ -95,4 +95,27 @@ describe("GeminiStudyPackGenerator", () => {
     await expect(generator.generate(request)).rejects.toMatchObject({ code: "misconfigured" });
     expect(calls).toHaveLength(1);
   });
+
+  it("starts with the model that worked last time", async () => {
+    const { client, calls } = fakeClient(() => {
+      if (calls.at(-1)?.model === "busy-model") throw new ApiError({ status: 503, message: "high demand" });
+      return okReply;
+    });
+    const generator = new GeminiStudyPackGenerator(client, ["busy-model", "free-model"]);
+
+    await generator.generate(request);
+    await generator.generate(request);
+
+    expect(calls.map((c) => c.model)).toEqual(["busy-model", "free-model", "free-model"]);
+  });
+
+  it("moves on when a model returns a broken answer", async () => {
+    let attempt = 0;
+    const { client } = fakeClient(() =>
+      attempt++ === 0 ? { text: "not json", candidates: [{ finishReason: FinishReason.STOP }] } : okReply,
+    );
+
+    const result = await new GeminiStudyPackGenerator(client, ["a", "b"]).generate(request);
+    expect(result.pack).toEqual(SAMPLE_PACK);
+  });
 });

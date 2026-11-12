@@ -15,10 +15,10 @@ const MAX_BODY_CHARS = TRANSCRIPT_MAX_CHARS * 2 + 1024;
 const ERROR_RESPONSES: Record<GenerationErrorCode, { status: number; message: string }> = {
   declined: { status: 422, message: "The AI could not process this transcript." },
   too_long: { status: 422, message: "The class was too long to process in one go. Try a shorter recording." },
-  rate_limited: { status: 503, message: "The AI service is busy or its free quota is used up. Wait a minute and try again." },
+  rate_limited: { status: 503, message: "The AI service is busy right now. Wait a few minutes and try again." },
   misconfigured: { status: 500, message: "The server is not configured correctly." },
-  timeout: { status: 504, message: "The AI took too long to answer. Try again, or use a shorter recording." },
-  unavailable: { status: 502, message: "The AI service is unavailable right now. Try again shortly." },
+  timeout: { status: 504, message: "The AI service is busy right now. Wait a few minutes and try again." },
+  unavailable: { status: 502, message: "The AI service is busy right now. Wait a few minutes and try again." },
 };
 
 function errorResponse(status: number, message: string, headers?: HeadersInit) {
