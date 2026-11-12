@@ -1,3 +1,4 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -26,8 +27,20 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 
+/**
+ * This computer's own addresses on the local network.
+ * Lets a phone on the same Wi-Fi open the development site at http://<address>:3000.
+ */
+function localNetworkAddresses(): string[] {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((net) => net?.family === "IPv4" && !net.internal)
+    .map((net) => net!.address);
+}
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: isDev ? localNetworkAddresses() : [],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
