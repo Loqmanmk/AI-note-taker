@@ -1,74 +1,79 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { z } from "zod";
-import { HISTORY_MAX_ITEMS } from "@shared/constants";
-import { SavedClassSchema, type SavedClass } from "@shared/schema";
+import type { SavedClass } from "@shared/schema";
+import type { ClassSource } from "./classSources";
 
-const STORAGE_KEY = "focusnotes.history.v1";
-const EMPTY: SavedClass[] = [];
+export type ClassListStatus = "idle" | "loading" | "ready" | "error";
+export type ClassListState = { items: SavedClass[]; status: ClassListStatus };
 
 type Listener = () => void;
 
+const IDLE: ClassListState = { items: [], status: "idle" };
+
 /**
- * Past classes, stored on the phone.
+ * The student's past classes, from whichever source is active.
  * Shaped as an external store so React can subscribe with useSyncExternalStore.
  */
 class ClassStore {
-  private saved: SavedClass[] = EMPTY;
+  private state: ClassListState = IDLE;
+  private source: ClassSource | null = null;
   /** Classes shown this session but not kept, such as demo results. */
   private readonly unsaved = new Map<string, SavedClass>();
   private readonly listeners = new Set<Listener>();
-  private loading: Promise<void> | undefined;
+  /** Bumped when the source changes, so a late answer from the old source is ignored. */
+  private generation = 0;
 
   subscribe = (listener: Listener) => {
-    this.load();
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
 
-  getSnapshot = (): SavedClass[] => this.saved;
+  getSnapshot = (): ClassListState => this.state;
 
-  find(id: string): SavedClass | undefined {
-    return this.unsaved.get(id) ?? this.saved.find((item) => item.id === id);
+  /** Switches to another source (or none, when signed out) and loads its classes. */
+  setSource(source: ClassSource | null) {
+    this.source = source;
+    this.unsaved.clear();
+    this.generation += 1;
+    this.set(source ? { items: [], status: "loading" } : IDLE);
+    if (source) this.reload();
   }
 
-  /** Keeps a class so it can be opened. Demo results are not written to storage. */
+  async reload() {
+    const source = this.source;
+    if (!source) return;
+    const generation = this.generation;
+    this.set({ items: this.state.items, status: "loading" });
+    try {
+      const items = await source.load();
+      if (generation === this.generation) this.set({ items, status: "ready" });
+    } catch {
+      if (generation === this.generation) this.set({ items: this.state.items, status: "error" });
+    }
+  }
+
+  find(id: string): SavedClass | undefined {
+    return this.unsaved.get(id) ?? this.state.items.find((item) => item.id === id);
+  }
+
+  /** Shows a new class. Demo results are kept for this session only. */
   add(item: SavedClass) {
     if (item.demo) {
       this.unsaved.set(item.id, item);
       return;
     }
-    this.write([item, ...this.saved].slice(0, HISTORY_MAX_ITEMS));
+    const items = [item, ...this.state.items.filter((existing) => existing.id !== item.id)];
+    this.set({ items, status: this.state.status === "error" ? "ready" : this.state.status });
+    this.source?.added(items).catch(() => {});
   }
 
-  remove(id: string) {
-    this.write(this.saved.filter((item) => item.id !== id));
+  /** Throws an Error safe to show when the class could not be deleted. */
+  async remove(id: string) {
+    const remaining = this.state.items.filter((item) => item.id !== id);
+    await this.source?.remove(id, remaining);
+    this.set({ ...this.state, items: this.state.items.filter((item) => item.id !== id) });
   }
 
-  private load(): Promise<void> {
-    this.loading ??= AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        // Stored data may come from an older version of the app: validate it.
-        const parsed = z.array(SavedClassSchema).safeParse(JSON.parse(raw ?? "[]"));
-        if (parsed.success && parsed.data.length) {
-          this.saved = parsed.data;
-          this.notify();
-        }
-      })
-      .catch(() => {
-        // Unreadable history is not worth blocking the app for.
-      });
-    return this.loading;
-  }
-
-  private write(items: SavedClass[]) {
-    this.saved = items;
-    this.notify();
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items)).catch(() => {
-      // Storage full: the class stays available until the app closes.
-    });
-  }
-
-  private notify() {
+  private set(next: ClassListState) {
+    this.state = next;
     this.listeners.forEach((listener) => listener());
   }
 }

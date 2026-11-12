@@ -11,14 +11,28 @@ import {
   Manrope_800ExtraBold,
   useFonts,
 } from "@expo-google-fonts/manrope";
+import { ClassSourceSync } from "@/components/ClassSourceSync";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { fonts, useTheme } from "@/lib/theme";
 
-// Keep the splash screen up until the fonts are ready, so text never jumps.
+// Keep the splash screen up until fonts and the saved session are ready, so nothing jumps.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ClassSourceSync />
+        <RootNavigator />
+      </AuthProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootNavigator() {
   const theme = useTheme();
-  const [loaded, error] = useFonts({
+  const auth = useAuth();
+  const [fontsLoaded, fontError] = useFonts({
     Manrope_400Regular,
     Manrope_500Medium,
     Manrope_600SemiBold,
@@ -26,7 +40,9 @@ export default function RootLayout() {
     Manrope_800ExtraBold,
   });
   // If the fonts fail to load, carry on with the system font rather than blocking the app.
-  const ready = loaded || Boolean(error);
+  const ready = (fontsLoaded || Boolean(fontError)) && !auth.isLoading;
+  // Without accounts set up, the app is open; otherwise a session is required.
+  const signedIn = !auth.enabled || auth.session !== null;
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
@@ -35,7 +51,7 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <SafeAreaProvider>
+    <>
       <StatusBar style="auto" />
       <Stack
         screenOptions={{
@@ -47,9 +63,14 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: theme.bg },
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false, title: "FocusNotes" }} />
-        <Stack.Screen name="class/[id]" options={{ title: "" }} />
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="index" options={{ headerShown: false, title: "FocusNotes" }} />
+          <Stack.Screen name="class/[id]" options={{ title: "" }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="sign-in" options={{ headerShown: false, title: "Sign in" }} />
+        </Stack.Protected>
       </Stack>
-    </SafeAreaProvider>
+    </>
   );
 }

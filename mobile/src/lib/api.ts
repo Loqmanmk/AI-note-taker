@@ -3,6 +3,7 @@ import { File as LocalFile } from "expo-file-system";
 import { Platform } from "react-native";
 import type { NoteLanguage } from "@shared/constants";
 import { NotesResponseSchema, type NotesResponse } from "@shared/schema";
+import { getAccessToken, supabase } from "./supabase";
 
 const SERVER_PORT = 3000;
 const HEALTH_TIMEOUT_MS = 5000;
@@ -44,9 +45,13 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("The server address is not set. Add EXPO_PUBLIC_API_URL to mobile/.env.");
 
+  // Proves to the server which student is asking.
+  const token = await getAccessToken();
+  const headers = { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
   let res: Response;
   try {
-    res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init });
+    res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init, headers });
   } catch (err) {
     // Shown in the Expo terminal on the computer, so the real cause can be diagnosed.
     console.warn(`[api] ${path} failed:`, err);
@@ -60,6 +65,8 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const message = (data as { error?: unknown } | null)?.error;
+    // The session ended: signing out brings the student back to the sign-in screen.
+    if (res.status === 401) await supabase?.auth.signOut();
     throw new Error(typeof message === "string" ? message : "Something went wrong. Try again.");
   }
 
