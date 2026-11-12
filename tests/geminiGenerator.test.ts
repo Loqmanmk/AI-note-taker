@@ -1,4 +1,4 @@
-import { ApiError, FinishReason, type GoogleGenAI } from "@google/genai";
+import { ApiError, FileState, FinishReason, type GoogleGenAI } from "@google/genai";
 import { describe, expect, it } from "vitest";
 import { GeminiStudyPackGenerator } from "../lib/server/geminiGenerator";
 import { SAMPLE_PACK } from "../lib/sample";
@@ -69,7 +69,7 @@ describe("GeminiStudyPackGenerator", () => {
       },
     } as unknown as GoogleGenAI;
 
-    const generator = new GeminiStudyPackGenerator(client, ["test-model"], 20);
+    const generator = new GeminiStudyPackGenerator(client, ["test-model"], { textMs: 20 });
     await expect(generator.generate(request)).rejects.toMatchObject({ code: "timeout" });
   });
 
@@ -117,5 +117,72 @@ describe("GeminiStudyPackGenerator", () => {
 
     const result = await new GeminiStudyPackGenerator(client, ["a", "b"]).generate(request);
     expect(result.pack).toEqual(SAMPLE_PACK);
+  });
+});
+
+describe("GeminiStudyPackGenerator with a recording", () => {
+  const audioRequest = {
+    audio: new Blob(["fake audio bytes"]),
+    mimeType: "audio/mp4",
+    language: "auto" as const,
+    lostTimes: [42],
+  };
+
+  /** A stand-in client that records which file operations happen, in order. */
+  function fakeAudioClient(options: { processingChecks?: number; generate?: () => unknown } = {}) {
+    const log: string[] = [];
+    let checksLeft = options.processingChecks ?? 0;
+    const file = { name: "files/abc", uri: "https://example.test/files/abc", mimeType: "audio/mp4" };
+    const client = {
+      files: {
+        upload: async () => {
+          log.push("upload");
+          return { ...file, state: checksLeft > 0 ? FileState.PROCESSING : FileState.ACTIVE };
+        },
+        get: async () => {
+          log.push("get");
+          return { ...file, state: --checksLeft > 0 ? FileState.PROCESSING : FileState.ACTIVE };
+        },
+        delete: async () => {
+          log.push("delete");
+        },
+      },
+      models: {
+        generateContent: async (params: { contents: unknown }) => {
+          log.push("generate");
+          expect(JSON.stringify(params.contents)).toContain(file.uri);
+          expect(JSON.stringify(params.contents)).toContain("marker #1 at 00:42");
+          return (options.generate ?? (() => okReply))();
+        },
+      },
+    } as unknown as GoogleGenAI;
+    return { client, log };
+  }
+
+  it("uploads the recording, writes the notes, then deletes the recording", async () => {
+    const { client, log } = fakeAudioClient();
+    const result = await new GeminiStudyPackGenerator(client, ["m"]).generateFromAudio(audioRequest);
+
+    expect(result.pack).toEqual(SAMPLE_PACK);
+    expect(log).toEqual(["upload", "generate", "delete"]);
+  });
+
+  it("waits while the recording is being processed", async () => {
+    const { client, log } = fakeAudioClient({ processingChecks: 2 });
+    await new GeminiStudyPackGenerator(client, ["m"], { pollMs: 1 }).generateFromAudio(audioRequest);
+
+    expect(log).toEqual(["upload", "get", "get", "generate", "delete"]);
+  });
+
+  it("deletes the recording even when every model fails", async () => {
+    const { client, log } = fakeAudioClient({
+      generate: () => {
+        throw new ApiError({ status: 503, message: "high demand" });
+      },
+    });
+    const generator = new GeminiStudyPackGenerator(client, ["a", "b"]);
+
+    await expect(generator.generateFromAudio(audioRequest)).rejects.toMatchObject({ code: "unavailable" });
+    expect(log).toEqual(["upload", "generate", "generate", "delete"]);
   });
 });
