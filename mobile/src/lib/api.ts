@@ -4,7 +4,7 @@ import type { NoteLanguage } from "@shared/constants";
 import { NotesResponseSchema, type NotesResponse } from "@shared/schema";
 
 const SERVER_PORT = 3000;
-const GENERIC_ERROR = "Could not reach the server. Check that your phone and computer are on the same Wi-Fi.";
+const HEALTH_TIMEOUT_MS = 5000;
 
 /**
  * Where the FocusNotes server is.
@@ -21,6 +21,23 @@ export function getApiBaseUrl(): string | undefined {
 
 export type Recording = { uri: string; lostTimes: number[] };
 
+/** Whether the server answers at all. Used to tell "no connection" apart from "this request failed". */
+export async function isServerReachable(): Promise<boolean> {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return false;
+  // AbortSignal.timeout is not available in every React Native version.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${baseUrl}/api/health`, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Throws an Error whose message is safe to show the student. */
 async function postForStudyPack(path: string, init: RequestInit): Promise<NotesResponse> {
   const baseUrl = getApiBaseUrl();
@@ -30,7 +47,11 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
   try {
     res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init });
   } catch {
-    throw new Error(GENERIC_ERROR);
+    // Naming the address lets the student test it in the phone's browser.
+    throw new Error(
+      `Could not reach the server at ${baseUrl}. Check that the server is running on your computer, ` +
+        "then open that address in your phone's browser to test the connection.",
+    );
   }
 
   const data: unknown = await res.json().catch(() => null);
@@ -53,7 +74,9 @@ async function appendRecording(form: FormData, uri: string) {
     return;
   }
   // React Native uploads a local file when given its uri, name and type.
-  form.append("audio", { uri, name: "class.m4a", type: "audio/mp4" } as unknown as Blob);
+  // Android refuses the upload when the path has no file:// scheme.
+  const fileUri = uri.includes("://") ? uri : `file://${uri}`;
+  form.append("audio", { uri: fileUri, name: "class.m4a", type: "audio/mp4" } as unknown as Blob);
 }
 
 export async function requestStudyPackFromRecording(
