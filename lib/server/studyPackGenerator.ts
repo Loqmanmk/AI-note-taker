@@ -13,7 +13,7 @@ export interface StudyPackGenerator {
 
 export type GenerationErrorCode = "declined" | "too_long" | "rate_limited" | "misconfigured" | "unavailable" | "timeout";
 
-/** How long to wait for the AI before giving up, so the student is never left waiting forever. */
+/** How long to wait for one AI request before giving up, so the student is never left waiting forever. */
 export const GENERATION_TIMEOUT_MS = 120_000;
 
 /** A failure the user can be told about. Anything else is a bug and stays a 500. */

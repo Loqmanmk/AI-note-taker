@@ -3,14 +3,17 @@
 import { GoogleGenAI } from "@google/genai";
 
 const key = process.env.GEMINI_API_KEY;
-const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-const STEP_TIMEOUT_MS = 60_000;
+const models = (process.env.GEMINI_MODEL || "gemini-3.8-flash,gemini-3.5-flash,gemini-2.5-flash")
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+const STEP_TIMEOUT_MS = 30_000;
 
 if (!key) {
   console.log("FAIL: GEMINI_API_KEY is not set in .env.local");
   process.exit(1);
 }
-console.log(`Key found (${key.length} characters). Model: ${model}\n`);
+console.log(`Key found (${key.length} characters). Models, in order: ${models.join(", ")}\n`);
 
 const ai = new GoogleGenAI({ apiKey: key });
 const seconds = (start) => `${((Date.now() - start) / 1000).toFixed(1)}s`;
@@ -34,39 +37,35 @@ const reachable = await step("1. Reach Google and list models", async (abortSign
   const names = [];
   const pager = await ai.models.list({ config: { abortSignal, pageSize: 100 } });
   for await (const m of pager) names.push(m.name.replace("models/", ""));
-  const flash = names.filter((n) => n.includes("flash"));
-  const found = names.includes(model) ? "is available" : "IS NOT IN THE LIST";
-  return `"${model}" ${found}. Flash models: ${flash.join(", ") || "none"}`;
+  const missing = models.filter((m) => !names.includes(m));
+  return missing.length ? `NOT IN THE LIST: ${missing.join(", ")}` : "All configured models exist.";
 });
 if (!reachable) process.exit(1);
 
-await step("2. Tiny question", async (abortSignal) => {
-  const res = await ai.models.generateContent({ model, contents: "Reply with the word: ready", config: { abortSignal } });
-  return `Answer: ${String(res.text).trim().slice(0, 60)}`;
-});
+const jsonConfig = {
+  responseMimeType: "application/json",
+  responseJsonSchema: {
+    type: "object",
+    properties: { title: { type: "string" }, points: { type: "array", items: { type: "string" } } },
+    required: ["title", "points"],
+  },
+};
 
-await step("3. Small JSON answer (streamed)", async (abortSignal) => {
-  const start = Date.now();
-  let first = "";
-  let text = "";
-  let finish = "";
-  const stream = await ai.models.generateContentStream({
-    model,
-    contents: "Summarise photosynthesis as JSON with a title and three bullet points.",
-    config: {
-      abortSignal,
-      responseMimeType: "application/json",
-      responseJsonSchema: {
-        type: "object",
-        properties: { title: { type: "string" }, points: { type: "array", items: { type: "string" } } },
-        required: ["title", "points"],
-      },
-    },
+let working = 0;
+for (const model of models) {
+  const ok = await step(`2. Small JSON answer from ${model}`, async (abortSignal) => {
+    const res = await ai.models.generateContent({
+      model,
+      contents: "Summarise photosynthesis as JSON with a title and three bullet points.",
+      config: { abortSignal, ...jsonConfig },
+    });
+    return `Start of answer: ${String(res.text).slice(0, 100).replace(/\s+/g, " ")}`;
   });
-  for await (const chunk of stream) {
-    if (!first && chunk.text) first = seconds(start);
-    text += chunk.text ?? "";
-    finish = chunk.candidates?.[0]?.finishReason ?? finish;
-  }
-  return `First text after ${first || "never"}, ${text.length} characters, finish: ${finish}\n   Start of answer: ${text.slice(0, 120).replace(/\s+/g, " ")}`;
-});
+  if (ok) working++;
+}
+
+console.log(
+  working
+    ? `\n${working} of ${models.length} models answered. The app tries them in order, so it should work.`
+    : "\nNo model answered. Google's free service is busy right now; try again in a few minutes.",
+);
