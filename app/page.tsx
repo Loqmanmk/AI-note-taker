@@ -132,7 +132,7 @@ export default function Home() {
       </div>
 
       <div aria-live="polite">
-        {loading && <p className="muted status">This can take up to a minute for a long class.</p>}
+        {loading && <p className="muted status">Writing your notes. This usually takes under a minute, sometimes longer when the AI service is busy.</p>}
         {(error || recorder.error) && (
           <p className="error" role="alert">
             {error || recorder.error}

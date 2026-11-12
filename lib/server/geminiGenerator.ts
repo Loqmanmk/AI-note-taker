@@ -17,8 +17,8 @@ import {
 const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 const ATTEMPT_TIMEOUT_MS = 60_000;
 
-/** Failures that are about one model's availability, where another model may work. */
-const RETRY_ON_NEXT_MODEL: GenerationErrorCode[] = ["timeout", "unavailable", "rate_limited"];
+/** A wrong key fails on every model, so there is no point trying the others. */
+const NEVER_RETRY: GenerationErrorCode[] = ["misconfigured"];
 
 function modelsFromEnv(): string[] {
   const configured = (process.env.GEMINI_MODEL ?? "")
@@ -44,19 +44,34 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator {
     private readonly attemptTimeoutMs: number = ATTEMPT_TIMEOUT_MS,
   ) {}
 
+  /** The model that answered last time. It is tried first, so a busy model only costs one wait. */
+  private preferredModel: string | undefined;
+
+  /**
+   * Tries each model in turn and returns the first good answer.
+   * A model failing is logged for the operator and is invisible to the student;
+   * an error is only reported when every model has failed.
+   */
   async generate(request: NotesRequest): Promise<GenerationResult> {
     let lastError: unknown;
-    for (const model of this.models) {
+    for (const model of this.modelsInOrder()) {
       try {
-        return await this.generateWith(model, request);
+        const result = await this.generateWith(model, request);
+        this.preferredModel = model;
+        return result;
       } catch (err) {
-        const retryable = err instanceof GenerationError && RETRY_ON_NEXT_MODEL.includes(err.code);
-        if (!retryable) throw err;
-        console.warn(`[notes] ${model} failed (${err.code}), trying the next model`);
+        if (!(err instanceof GenerationError) || NEVER_RETRY.includes(err.code)) throw err;
+        console.info(`[notes] ${model} did not answer (${err.code}), trying the next model`);
         lastError = err;
       }
     }
     throw lastError;
+  }
+
+  private modelsInOrder(): string[] {
+    const preferred = this.preferredModel;
+    if (!preferred) return this.models;
+    return [preferred, ...this.models.filter((model) => model !== preferred)];
   }
 
   private async generateWith(model: string, request: NotesRequest): Promise<GenerationResult> {
