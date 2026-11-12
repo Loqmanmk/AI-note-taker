@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NotesRequestSchema } from "../lib/schema";
 import { buildAudioMessage, buildUserMessage } from "../lib/server/prompt";
 
 describe("buildUserMessage", () => {
@@ -18,5 +19,17 @@ describe("buildAudioMessage", () => {
 
   it("says so when there are no markers", () => {
     expect(buildAudioMessage({ language: "auto", lostTimes: [] })).toContain("did not press");
+  });
+});
+
+describe("Moroccan Darija", () => {
+  it("asks for Darija in Arabic script with technical terms kept as the teacher said them", () => {
+    const message = buildAudioMessage({ language: "Darija", lostTimes: [] });
+    expect(message).toContain("Moroccan Darija, written in Arabic script");
+    expect(message).toContain("technical and scientific terms");
+  });
+
+  it("is accepted as a notes language by the API", () => {
+    expect(NotesRequestSchema.safeParse({ transcript: "a".repeat(60), language: "Darija" }).success).toBe(true);
   });
 });
