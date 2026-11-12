@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:ai": "node --env-file=.env.local scripts/check-ai.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
