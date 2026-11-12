@@ -58,4 +58,18 @@ describe("GeminiStudyPackGenerator", () => {
     });
     await expect(new GeminiStudyPackGenerator(client).generate(request)).rejects.toMatchObject({ code });
   });
+
+  it("gives up with a timeout error when the AI does not answer", async () => {
+    const client = {
+      models: {
+        generateContent: ({ config }: { config: { abortSignal: AbortSignal } }) =>
+          new Promise((_resolve, reject) => {
+            config.abortSignal.addEventListener("abort", () => reject(config.abortSignal.reason));
+          }),
+      },
+    } as unknown as GoogleGenAI;
+
+    const generator = new GeminiStudyPackGenerator(client, "test-model", 20);
+    await expect(generator.generate(request)).rejects.toMatchObject({ code: "timeout" });
+  });
 });

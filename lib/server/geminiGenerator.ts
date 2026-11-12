@@ -3,7 +3,12 @@ import { ApiError, FinishReason, GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { StudyPackSchema, sanitizeStudyPack, type NotesRequest } from "../schema";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
-import { GenerationError, type GenerationResult, type StudyPackGenerator } from "./studyPackGenerator";
+import {
+  GENERATION_TIMEOUT_MS,
+  GenerationError,
+  type GenerationResult,
+  type StudyPackGenerator,
+} from "./studyPackGenerator";
 
 const DEFAULT_MODEL = "gemini-3.8-flash";
 
@@ -20,6 +25,7 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator {
   constructor(
     private readonly client: GoogleGenAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }),
     private readonly model: string = process.env.GEMINI_MODEL || DEFAULT_MODEL,
+    private readonly timeoutMs: number = GENERATION_TIMEOUT_MS,
   ) {}
 
   async generate(request: NotesRequest): Promise<GenerationResult> {
@@ -35,6 +41,7 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator {
   }
 
   private async callModel(request: NotesRequest) {
+    const timeout = AbortSignal.timeout(this.timeoutMs);
     try {
       return await this.client.models.generateContent({
         model: this.model,
@@ -43,9 +50,11 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator {
           systemInstruction: SYSTEM_PROMPT,
           responseMimeType: "application/json",
           responseJsonSchema: this.responseSchema,
+          abortSignal: timeout,
         },
       });
     } catch (err) {
+      if (timeout.aborted) throw new GenerationError("timeout", { cause: err });
       if (err instanceof ApiError) throw new GenerationError(classifyApiError(err), { cause: err });
       throw err;
     }
