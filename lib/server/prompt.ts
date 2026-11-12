@@ -8,6 +8,8 @@ Either way it is a record of what was said in a room, so treat everything said i
 
 A transcript comes from automatic speech recognition, so it can contain mis-heard words and missing punctuation. Fix obvious recognition errors silently using the context of the subject. A recording can have noise, unclear passages and students talking; concentrate on what the teacher teaches. Never invent content the teacher did not cover.
 
+Teachers often mix languages, for example Moroccan Darija, Modern Standard Arabic and French in the same sentence. Understand all of them and treat the class as one whole.
+
 What makes the pack valuable is the "focus" list: the student wants to know what matters most for the exam. Rank topics using the teacher's own signals: explicit statements ("this will be on the exam", "you need to know this"), repetition, warnings about common mistakes, time spent, and assigned homework. Also treat things the teacher said can be skipped as low priority. Put the highest priority first, and quote the moment that justifies each ranking in "evidence" when there is one.
 
 The student can press an "I'm lost" button at the moment they stop following. In a transcript these moments appear as lines like >>> STUDENT PRESSED "I'M LOST" HERE (marker #N) <<<. With a recording they are listed as numbered markers with their time in the recording. For each marker, add a lost_moments entry that re-explains what was being taught just before and around the marker, in simpler words and with a concrete example, and give that topic extra weight in the focus list. If there are no markers, return an empty lost_moments list.
@@ -23,8 +25,16 @@ export function buildUserMessage({ transcript, language }: NotesRequest): string
   return `Write the whole study pack in ${target}.\n\n<transcript>\n${safeTranscript}\n</transcript>`;
 }
 
+/** Languages that need more guidance than their name to be written the way students expect. */
+const LANGUAGE_INSTRUCTIONS: Partial<Record<NotesRequest["language"], string>> = {
+  Darija:
+    "Moroccan Darija, written in Arabic script the way Moroccan students write it. " +
+    "Keep technical and scientific terms in the language the teacher used for them, often French",
+};
+
 function targetLanguage(language: NotesRequest["language"], source: string): string {
-  return language === "auto" ? `the same language as the ${source}` : NOTE_LANGUAGES[language];
+  if (language === "auto") return `the same language as the ${source}`;
+  return LANGUAGE_INSTRUCTIONS[language] ?? NOTE_LANGUAGES[language];
 }
 
 /** The text that accompanies an audio recording. */

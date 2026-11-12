@@ -13,6 +13,7 @@ export const NOTE_LANGUAGES = {
   English: "English",
   French: "French",
   Arabic: "Arabic",
+  Darija: "Moroccan Darija",
   Spanish: "Spanish",
   German: "German",
 } as const;
