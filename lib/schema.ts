@@ -64,6 +64,11 @@ export const AudioNotesFieldsSchema = z.object({
 });
 export type AudioNotesFields = z.infer<typeof AudioNotesFieldsSchema>;
 
+/** Body of POST /api/notes/audio when the recording was first uploaded to storage. */
+export const StoredRecordingRequestSchema = AudioNotesFieldsSchema.extend({
+  recordingPath: z.string().min(1).max(300),
+});
+
 export const NotesResponseSchema = z.object({
   pack: StudyPackSchema,
   demo: z.boolean(),

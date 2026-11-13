@@ -20,6 +20,8 @@ Until they are done, the app runs **without** sign-in in development, and keeps 
 
 This creates the `classes` table and the rules that let each student see only their own classes.
 
+Do the same with [`supabase/migrations/20261113000000_create_recordings_bucket.sql`](../supabase/migrations/20261113000000_create_recordings_bucket.sql). It creates the private `recordings` storage, where the app uploads each recording before its notes are written.
+
 ## 3. Create the Google credentials
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a project (for example "FocusNotes").
@@ -100,7 +102,7 @@ If your network cannot resolve that name, `npm start` says so and uses the IP: t
 
 ## For developers: local Supabase
 
-`npx supabase start` runs Supabase locally with Docker, and `supabase/config.toml` already allows the app's redirect links. The integration tests use it:
+`npx supabase@latest start` runs Supabase locally with Docker, and `supabase/config.toml` already allows the app's redirect links. The integration tests use it:
 
 ```bash
 SUPABASE_TEST_URL=http://127.0.0.1:54321 \
