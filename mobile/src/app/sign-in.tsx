@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { IconBubble, Txt, type IconName } from "@/components/ui";
-import { useAuth } from "@/lib/auth";
+import { getAuthReturnAddress, useAuth } from "@/lib/auth";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
@@ -86,6 +86,12 @@ export default function SignInScreen() {
         <Txt variant="small" style={styles.privacy}>
           We use your Google name and email only to keep your classes in your account.
         </Txt>
+
+        {__DEV__ && (
+          <Txt variant="small" tone="faint" style={styles.privacy} selectable>
+            Development: Supabase must allow the return address {getAuthReturnAddress()}
+          </Txt>
+        )}
       </View>
     </ScrollView>
   );
