@@ -1,7 +1,9 @@
 import Constants from "expo-constants";
+import { randomUUID } from "expo-crypto";
 import { File as LocalFile } from "expo-file-system";
 import { Platform } from "react-native";
-import type { NoteLanguage } from "@shared/constants";
+import { AUDIO_MAX_BYTES, type NoteLanguage } from "@shared/constants";
+import { RECORDINGS_BUCKET, recordingPath } from "@shared/recordings";
 import { NotesResponseSchema, type NotesResponse } from "@shared/schema";
 import { getAccessToken, supabase } from "./supabase";
 
@@ -90,10 +92,56 @@ async function appendRecording(form: FormData, uri: string) {
   form.append("audio", file);
 }
 
+const TOO_LONG = "The recording is too long. Split the class into two parts.";
+
+/** The recording's bytes, wherever the platform keeps it. */
+async function readRecording(uri: string): Promise<Uint8Array> {
+  if (Platform.OS === "web") return new Uint8Array(await (await fetch(uri)).arrayBuffer());
+  const file = new LocalFile(uri);
+  if (!file.exists) throw new Error("The recording could not be found on the phone. Record the class again.");
+  if (file.size > AUDIO_MAX_BYTES) throw new Error(TOO_LONG);
+  return file.bytes();
+}
+
+/**
+ * Uploads the recording to the student's private storage folder and returns its path.
+ * Recordings go there rather than to the server, because hosting platforms cap request size
+ * (Vercel: 4.5 MB) while an hour of class is about 15 MB. The server deletes it once used.
+ */
+async function uploadRecording(uri: string): Promise<string> {
+  if (!supabase) throw new Error("Accounts are not set up.");
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error("Your session has expired. Sign in again.");
+
+  const bytes = await readRecording(uri);
+  const extension = Platform.OS === "web" ? "webm" : "m4a";
+  const path = recordingPath(userId, randomUUID(), extension);
+  const { error } = await supabase.storage.from(RECORDINGS_BUCKET).upload(path, bytes, {
+    contentType: Platform.OS === "web" ? "audio/webm" : "audio/mp4",
+    upsert: false,
+  });
+  if (error) {
+    console.warn("[api] recording upload failed:", error.message);
+    throw new Error("Could not upload the recording. Check your connection and try again.");
+  }
+  return path;
+}
+
 export async function requestStudyPackFromRecording(
   recording: Recording,
   language: NoteLanguage,
 ): Promise<NotesResponse> {
+  // With accounts, the recording goes to storage and the server receives only where it is.
+  if (supabase) {
+    const path = await uploadRecording(recording.uri);
+    return postForStudyPack("/api/notes/audio", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recordingPath: path, language, lostTimes: recording.lostTimes }),
+    });
+  }
+
+  // Without accounts (a local server), the recording is sent to the server directly.
   const form = new FormData();
   await appendRecording(form, recording.uri);
   form.append("language", language);

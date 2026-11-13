@@ -120,6 +120,30 @@ describe("GeminiStudyPackGenerator", () => {
   });
 });
 
+describe("GeminiStudyPackGenerator time budget", () => {
+  it("stops trying models when the time left is too short, so the platform does not cut the request", async () => {
+    const calls: string[] = [];
+    const client = {
+      models: {
+        generateContent: ({ model, config }: { model: string; config: { abortSignal: AbortSignal } }) => {
+          calls.push(model);
+          return new Promise((_resolve, reject) => {
+            config.abortSignal.addEventListener("abort", () => reject(config.abortSignal.reason));
+          });
+        },
+      },
+    } as unknown as GoogleGenAI;
+
+    const generator = new GeminiStudyPackGenerator(client, ["a", "b", "c"], {
+      textMs: 60,
+      totalMs: 150,
+      minAttemptMs: 50,
+    });
+    await expect(generator.generate(request)).rejects.toMatchObject({ code: "timeout" });
+    expect(calls).toEqual(["a", "b"]);
+  });
+});
+
 describe("GeminiStudyPackGenerator with a recording", () => {
   const audioRequest = {
     audio: new Blob(["fake audio bytes"]),

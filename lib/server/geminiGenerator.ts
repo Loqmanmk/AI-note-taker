@@ -36,9 +36,23 @@ export type GeminiTimeouts = {
   uploadMs: number;
   /** Pause between checks while a recording is being processed. */
   pollMs: number;
+  /**
+   * Everything for one request, retries included. Hosting platforms stop a request after a fixed
+   * time (Vercel's free plan: 300 s), so the generator gives up with a clear error before that.
+   */
+  totalMs: number;
+  /** A new model is only tried when at least this much of the total time is left. */
+  minAttemptMs: number;
 };
 
-const DEFAULT_TIMEOUTS: GeminiTimeouts = { textMs: 60_000, audioMs: 120_000, uploadMs: 120_000, pollMs: 2_000 };
+const DEFAULT_TIMEOUTS: GeminiTimeouts = {
+  textMs: 60_000,
+  audioMs: 120_000,
+  uploadMs: 90_000,
+  pollMs: 2_000,
+  totalMs: 270_000,
+  minAttemptMs: 20_000,
+};
 
 /** A wrong key fails on every model, so there is no point trying the others. */
 const NEVER_RETRY: GenerationErrorCode[] = ["misconfigured"];
@@ -74,17 +88,19 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyP
   }
 
   generate(request: NotesRequest): Promise<GenerationResult> {
-    return this.generateWithFallback(buildUserMessage(request), this.timeouts.textMs);
+    const deadline = Date.now() + this.timeouts.totalMs;
+    return this.generateWithFallback(buildUserMessage(request), this.timeouts.textMs, deadline);
   }
 
   async generateFromAudio(request: AudioNotesRequest): Promise<GenerationResult> {
-    const file = await this.uploadAudio(request);
+    const deadline = Date.now() + this.timeouts.totalMs;
+    const file = await this.uploadAudio(request, deadline);
     try {
       const contents = createUserContent([
         createPartFromUri(file.uri ?? "", file.mimeType ?? request.mimeType),
         buildAudioMessage(request),
       ]);
-      return await this.generateWithFallback(contents, this.timeouts.audioMs);
+      return await this.generateWithFallback(contents, this.timeouts.audioMs, deadline);
     } finally {
       // The recording is only needed for this one request; do not leave it on Google's servers.
       if (file.name) await this.client.files.delete({ name: file.name }).catch(() => {});
@@ -96,11 +112,20 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyP
    * A model failing is logged for the operator and is invisible to the student;
    * an error is only reported when every model has failed.
    */
-  private async generateWithFallback(contents: ContentListUnion, timeoutMs: number): Promise<GenerationResult> {
+  private async generateWithFallback(
+    contents: ContentListUnion,
+    timeoutMs: number,
+    deadline: number,
+  ): Promise<GenerationResult> {
     let lastError: unknown;
     for (const model of this.modelsInOrder()) {
+      const remaining = deadline - Date.now();
+      if (remaining < this.timeouts.minAttemptMs) {
+        console.info(`[notes] not enough time left to try ${model}`);
+        break;
+      }
       try {
-        const result = await this.generateWith(model, contents, timeoutMs);
+        const result = await this.generateWith(model, contents, Math.min(timeoutMs, remaining));
         this.preferredModel = model;
         return result;
       } catch (err) {
@@ -109,7 +134,7 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyP
         lastError = err;
       }
     }
-    throw lastError;
+    throw lastError ?? new GenerationError("timeout");
   }
 
   private modelsInOrder(): string[] {
@@ -142,8 +167,8 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyP
   }
 
   /** Sends the recording to Google and waits until it is ready to be listened to. */
-  private uploadAudio({ audio, mimeType }: AudioNotesRequest): Promise<GeminiFile> {
-    return withTimeout(this.timeouts.uploadMs, async (abortSignal) => {
+  private uploadAudio({ audio, mimeType }: AudioNotesRequest, deadline: number): Promise<GeminiFile> {
+    return withTimeout(Math.min(this.timeouts.uploadMs, deadline - Date.now()), async (abortSignal) => {
       let file = await this.client.files.upload({ file: audio, config: { mimeType, abortSignal } });
 
       while (file.state === FileState.PROCESSING && file.name) {

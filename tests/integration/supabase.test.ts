@@ -9,6 +9,8 @@ import { CLASSES_TABLE, CLASS_COLUMNS, rowsToSavedClasses } from "../../lib/clas
 import { SAMPLE_PACK } from "../../lib/sample";
 import { SupabaseAuthVerifier, type AuthUser } from "../../lib/server/auth";
 import { SupabaseClassRepository } from "../../lib/server/classRepository";
+import { SupabaseRecordingStore } from "../../lib/server/recordingStore";
+import { RECORDINGS_BUCKET, recordingPath } from "../../lib/recordings";
 
 const url = process.env.SUPABASE_TEST_URL ?? "";
 const publishableKey = process.env.SUPABASE_TEST_PUBLISHABLE_KEY ?? "";
@@ -94,5 +96,32 @@ describe.skipIf(!url || !publishableKey || !secretKey)("Supabase accounts (integ
       .insert({ title: "x", subject: "y", pack: huge })
       .setHeader("Authorization", `Bearer ${alice.user.accessToken}`);
     expect(result.error).not.toBeNull();
+  });
+
+  it("keeps each student's recordings private, and lets the server fetch and delete them as the student", async () => {
+    const audio = new Uint8Array(4096).fill(7);
+    const path = recordingPath(alice.user.id, `rec-${Date.now()}`);
+    const asAlice = alice.client.storage.from(RECORDINGS_BUCKET);
+
+    const uploaded = await asAlice.upload(path, audio, { contentType: "audio/mp4" });
+    expect(uploaded.error).toBeNull();
+
+    // Bob cannot upload into Alice's folder, nor read her file.
+    const intrusion = await bob.client.storage
+      .from(RECORDINGS_BUCKET)
+      .upload(recordingPath(alice.user.id, "intruder"), audio, { contentType: "audio/mp4" });
+    expect(intrusion.error).not.toBeNull();
+    const store = new SupabaseRecordingStore(config);
+    expect(await store.download(bob.user, path)).toBeNull();
+
+    // A file type that is not audio is refused by the bucket.
+    const notAudio = await asAlice.upload(recordingPath(alice.user.id, "notes"), audio, { contentType: "application/pdf" });
+    expect(notAudio.error).not.toBeNull();
+
+    // The server, acting as Alice, gets the file back intact, then deletes it.
+    const blob = await store.download(alice.user, path);
+    expect(blob?.size).toBe(audio.length);
+    await store.remove(alice.user, path);
+    expect(await store.download(alice.user, path)).toBeNull();
   });
 });
