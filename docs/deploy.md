@@ -33,6 +33,8 @@ Vercel refuses requests larger than 4.5 MB, and an hour of class is about 15 MB.
 5. Click **Deploy** and wait for it to finish (2 to 3 minutes).
 6. Note your address, for example `https://ai-note-taker-abc.vercel.app`, and open `https://<your address>/api/health`. It should show `{"ok":true}`.
 
+   Use the short address shown under **Domains**. Each deployment also has a long address with random letters and your account name (like `ai-note-taker-r6za9nk7i-yourname-projects.vercel.app`): Vercel protects those, so only you, signed in to Vercel, can open them, and the app would be refused.
+
 From now on, every `git push` to GitHub updates the website automatically.
 
 ## 3. Allow the online website to sign in
