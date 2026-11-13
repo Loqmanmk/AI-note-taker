@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAuthRedirect } from "../lib/authRedirect";
+import { expoGoReturnAddress, parseAuthRedirect } from "../lib/authRedirect";
 
 describe("parseAuthRedirect", () => {
   it("reads the code from the query string", () => {
@@ -16,5 +16,18 @@ describe("parseAuthRedirect", () => {
 
   it("returns nothing for a link without a result", () => {
     expect(parseAuthRedirect("focusnotes://")).toEqual({ code: undefined, error: undefined });
+  });
+});
+
+describe("expoGoReturnAddress", () => {
+  it("points at the development server Expo Go loaded the app from", () => {
+    expect(expoGoReturnAddress("192.168.1.20:8081")).toBe("exp://192.168.1.20:8081");
+    expect(expoGoReturnAddress("192.168.1.20:8081/--/")).toBe("exp://192.168.1.20:8081");
+    expect(expoGoReturnAddress("exp://10.0.0.5:8081")).toBe("exp://10.0.0.5:8081");
+  });
+
+  it("returns nothing without a server address", () => {
+    expect(expoGoReturnAddress(undefined)).toBeUndefined();
+    expect(expoGoReturnAddress("  ")).toBeUndefined();
   });
 });

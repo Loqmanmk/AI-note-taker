@@ -1,21 +1,30 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import { Platform } from "react-native";
 import type { Session } from "@supabase/supabase-js";
+import { isRunningInExpoGo } from "expo";
 import { makeRedirectUri } from "expo-auth-session";
+import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { parseAuthRedirect } from "@shared/authRedirect";
+import { expoGoReturnAddress, parseAuthRedirect } from "@shared/authRedirect";
 import { supabase } from "./supabase";
 
 // Closes the sign-in popup when the web version comes back from Google.
 if (Platform.OS === "web") WebBrowser.maybeCompleteAuthSession();
 
 /**
- * Where Google and Supabase send the student back to.
- * Expo Go: exp://<computer>:8081 ; built app: focusnotes:// . Both must be allowed in Supabase.
+ * Where Google and Supabase send the student back to. Both forms must be allowed in Supabase.
+ * - Expo Go: exp://<computer>:8081. Expo Go cannot open focusnotes:// links. It is detected from
+ *   its native module, because some Expo Go versions report another execution environment, which
+ *   makes makeRedirectUri return focusnotes:// there.
+ * - Installed app or development build: focusnotes://
  * No path, so the return link opens the home screen rather than an unknown page.
  */
 export function getAuthReturnAddress(): string {
+  if (Platform.OS !== "web" && isRunningInExpoGo()) {
+    const address = expoGoReturnAddress(Constants.expoConfig?.hostUri);
+    if (address) return address;
+  }
   return makeRedirectUri({ scheme: "focusnotes" });
 }
 
@@ -103,7 +112,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) return;
     const redirectTo = getAuthReturnAddress();
-    console.info("[auth] opening Google sign-in; Supabase must allow the return address", redirectTo);
+    console.info(
+      `[auth] opening Google sign-in (${isRunningInExpoGo() ? "Expo Go" : "app build"}); Supabase must allow the return address`,
+      redirectTo,
+    );
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
