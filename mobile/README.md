@@ -20,6 +20,8 @@ The Android and iOS app, built with Expo. It records the class as audio, sends i
    npm start
    ```
 
+   `npm start` gives your computer a name the phone can use (see [Signing in from Expo Go](../docs/accounts-setup.md#signing-in-from-expo-go)); use it rather than `npx expo start`, or Google sign-in cannot return to the app.
+
 5. Scan the QR code shown in the terminal: with the Expo Go app on Android, with the Camera app on iPhone.
 
 The app finds the server by itself: it uses the address of the computer that runs Expo, on port 3000.

@@ -41,7 +41,7 @@ This creates the `classes` table and the rules that let each student see only th
    - **Site URL**: `http://localhost:3000`
    - **Redirect URLs**, add these three:
      - `http://localhost:3000/**` (the website)
-     - `exp://**` (the app in Expo Go). If Supabase still sends you to `localhost:3000`, also add the exact address shown at the bottom of the app's sign-in screen, followed by `**`, for example `exp://192.168.1.163:8081/**`. It changes when your computer's network address changes.
+     - `exp://**` (the app in Expo Go)
      - `focusnotes://**` (the installed app, later)
 
 ## 5. Give the keys to the app
@@ -73,6 +73,14 @@ cd mobile
 npm start -- --clear
 ```
 
+## Signing in from Expo Go
+
+Supabase refuses return addresses that contain an IP address (only `127.0.0.1` is allowed), and Expo Go normally reaches your computer by its IP, such as `exp://192.168.1.20:8081`. In that case Google sign-in sends the phone to `localhost:3000` instead of back to the app.
+
+`npm start` in `mobile/` avoids this: it gives your computer a name through [sslip.io](https://sslip.io), such as `192-168-1-20.sslip.io`, which points to the same address. The return address becomes `exp://192-168-1-20.sslip.io:8081/--/`, which `exp://**` allows. Always start Expo with `npm start`, not `npx expo start`.
+
+If your network cannot resolve that name, `npm start` says so and uses the IP: the app works but Google sign-in cannot come back to it. Try another network, or `npm start -- --tunnel` (the notes server then needs `EXPO_PUBLIC_API_URL` in `mobile/.env`). An installed build of the app uses `focusnotes://` and is not affected.
+
 ## Checking it works
 
 - The app and the website open on a **Continue with Google** screen.
@@ -86,7 +94,8 @@ npm start -- --clear
 |---|---|
 | Google says "Access blocked" or "not a test user" | Add your Gmail address under **Audience → Test users** in Google Cloud. |
 | Google says "redirect_uri_mismatch" | The redirect URI in Google Cloud must be exactly your Supabase callback URL. |
-| You come back to the app but stay on the sign-in screen | Check the three **Redirect URLs** in Supabase, then restart Expo with `npm start -- --clear`. |
+| The phone lands on `localhost:3000` ("site inaccessible") after choosing your account | Supabase refused the return address. Start Expo with `npm start` in `mobile/` (see "Signing in from Expo Go"), and check `exp://**` is in **Redirect URLs**. |
+| You come back to the app but stay on the sign-in screen | Send the lines starting with `[auth]` from the Expo terminal: they show each step. |
 | "Sign in to create notes" on every request | `NEXT_PUBLIC_SUPABASE_*` in `.env.local` must be the same project as `EXPO_PUBLIC_SUPABASE_*` in `mobile/.env`. Restart `npm run dev`. |
 
 ## For developers: local Supabase

@@ -87,13 +87,25 @@ export default function SignInScreen() {
           We use your Google name and email only to keep your classes in your account.
         </Txt>
 
-        {__DEV__ && (
-          <Txt variant="small" tone="faint" style={styles.privacy} selectable>
-            Development: Supabase must allow the return address {getAuthReturnAddress()}
-          </Txt>
-        )}
+        {__DEV__ && <ReturnAddressHint />}
       </View>
     </ScrollView>
+  );
+}
+
+/** Development only: shows where sign-in returns to, and warns about addresses Supabase refuses. */
+function ReturnAddressHint() {
+  const theme = useTheme();
+  const address = getAuthReturnAddress();
+  // Supabase refuses return addresses with a raw IP address, except 127.0.0.1.
+  const usesIp = /^[a-z]+:\/\/(\d{1,3}\.){3}\d{1,3}/i.test(address) && !address.includes("//127.0.0.1");
+
+  return (
+    <Txt variant="small" tone={usesIp ? undefined : "faint"} color={usesIp ? theme.high : undefined} style={styles.privacy} selectable>
+      {usesIp
+        ? `Development: Google sign-in cannot return to ${address} because Supabase refuses IP addresses. Start Expo with "npm start" (not "npx expo start").`
+        : `Development: Supabase must allow the return address ${address}`}
+    </Txt>
   );
 }
 
