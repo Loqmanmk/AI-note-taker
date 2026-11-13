@@ -42,37 +42,69 @@ export async function isServerReachable(): Promise<boolean> {
   }
 }
 
+type ServerAnswer = { status: number; data: unknown; isJson: boolean };
+
+/** Sends one request; throws an Error safe to show when the server cannot be reached. */
+async function send(baseUrl: string, path: string, init: RequestInit, token: string | undefined): Promise<ServerAnswer> {
+  const headers = {
+    ...(init.headers as Record<string, string> | undefined),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init, headers });
+  } catch (err) {
+    console.warn(`[api] ${path} failed:`, err);
+    throw new Error(`Could not reach the server at ${baseUrl}. Check your internet connection and try again.`);
+  }
+  const text = await res.text().catch(() => "");
+  try {
+    return { status: res.status, data: JSON.parse(text), isJson: true };
+  } catch {
+    return { status: res.status, data: text.slice(0, 300), isJson: false };
+  }
+}
+
+function errorMessage(data: unknown): string | undefined {
+  const message = (data as { error?: unknown } | null)?.error;
+  return typeof message === "string" ? message : undefined;
+}
+
 /** Throws an Error whose message is safe to show the student. */
 async function postForStudyPack(path: string, init: RequestInit): Promise<NotesResponse> {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("The server address is not set. Add EXPO_PUBLIC_API_URL to mobile/.env.");
 
-  // Proves to the server which student is asking.
-  const token = await getAccessToken();
-  const headers = { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  // The access token proves to the server which student is asking.
+  let answer = await send(baseUrl, path, init, await getAccessToken());
 
-  let res: Response;
-  try {
-    res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init, headers });
-  } catch (err) {
-    // Shown in the Expo terminal on the computer, so the real cause can be diagnosed.
-    console.warn(`[api] ${path} failed:`, err);
-    // Naming the address lets the student test it in the phone's browser.
+  if (answer.status === 401 && supabase) {
+    // The token may just have expired: refresh it once and try again.
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error || !refreshed.data.session) {
+      // The session really is over: signing out brings the student back to the sign-in screen.
+      await supabase.auth.signOut();
+      throw new Error("Your session has expired. Sign in again.");
+    }
+    answer = await send(baseUrl, path, init, refreshed.data.session.access_token);
+  }
+
+  if (answer.status === 401) {
+    // Still refused with a valid session: a setup problem, not the student's. Keep them signed in.
+    console.warn(`[api] ${baseUrl}${path} refused a valid session (${answer.isJson ? "server" : "not the notes server"}):`, answer.data);
     throw new Error(
-      `Could not reach the server at ${baseUrl}. Check that the server is running on your computer, ` +
-        "then open that address in your phone's browser to test the connection.",
+      answer.isJson
+        ? "The server did not accept your sign-in. It may be set up with a different Supabase project than the app."
+        : `The server at ${baseUrl} refused the request before reaching FocusNotes. If it is on Vercel, turn off Deployment Protection or use the project's main address.`,
     );
   }
 
-  const data: unknown = await res.json().catch(() => null);
-  if (!res.ok) {
-    const message = (data as { error?: unknown } | null)?.error;
-    // The session ended: signing out brings the student back to the sign-in screen.
-    if (res.status === 401) await supabase?.auth.signOut();
-    throw new Error(typeof message === "string" ? message : "Something went wrong. Try again.");
+  if (answer.status < 200 || answer.status >= 300) {
+    console.warn(`[api] ${path} answered ${answer.status}:`, answer.data);
+    throw new Error(errorMessage(answer.data) ?? "Something went wrong. Try again.");
   }
 
-  const parsed = NotesResponseSchema.safeParse(data);
+  const parsed = NotesResponseSchema.safeParse(answer.data);
   if (!parsed.success) throw new Error("The server sent an answer the app could not read.");
   return parsed.data;
 }
@@ -135,10 +167,17 @@ export async function requestStudyPackFromRecording(
   // With accounts, the recording goes to storage and the server receives only where it is.
   if (supabase) {
     const path = await uploadRecording(recording.uri);
-    return postForStudyPack("/api/notes/audio", {
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recordingPath: path, language, lostTimes: recording.lostTimes }),
-    });
+    try {
+      return await postForStudyPack("/api/notes/audio", {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordingPath: path, language, lostTimes: recording.lostTimes }),
+      });
+    } catch (err) {
+      // The server deletes the recording once it has used it; if the request failed before that,
+      // do not leave the class audio in storage. The phone keeps its own copy for a retry.
+      await supabase.storage.from(RECORDINGS_BUCKET).remove([path]).catch(() => {});
+      throw err;
+    }
   }
 
   // Without accounts (a local server), the recording is sent to the server directly.
