@@ -2,12 +2,54 @@ import { createContext, use, useCallback, useEffect, useMemo, useState, type Pro
 import { Platform } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import { makeRedirectUri } from "expo-auth-session";
+import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { parseAuthRedirect } from "@shared/authRedirect";
 import { supabase } from "./supabase";
 
 // Closes the sign-in popup when the web version comes back from Google.
 if (Platform.OS === "web") WebBrowser.maybeCompleteAuthSession();
+
+/**
+ * Where Google and Supabase send the student back to.
+ * Expo Go: exp://<computer>:8081 ; built app: focusnotes:// . Both must be allowed in Supabase.
+ * No path, so the return link opens the home screen rather than an unknown page.
+ */
+export function getAuthReturnAddress(): string {
+  return makeRedirectUri({ scheme: "focusnotes" });
+}
+
+/** Hides the one-time code before a link is written to the logs. */
+function forLogs(url: string): string {
+  return url.replace(/code=[^&#]+/, "code=<hidden>");
+}
+
+/** Codes already exchanged, since a return link can arrive through two routes at once. */
+const exchangedCodes = new Set<string>();
+
+/**
+ * Finishes sign-in from the link Supabase returned to. Returns false when the link holds no code.
+ * Throws an Error safe to show when Google or Supabase reported a problem.
+ */
+async function completeSignIn(url: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { code, error } = parseAuthRedirect(url);
+  if (error) {
+    console.warn("[auth] sign-in returned an error:", error);
+    throw new Error("Google sign-in was not completed. Try again.");
+  }
+  if (!code) return false;
+  if (exchangedCodes.has(code)) return true;
+  exchangedCodes.add(code);
+
+  const exchange = await supabase.auth.exchangeCodeForSession(code);
+  if (exchange.error) {
+    console.warn("[auth] could not exchange the code:", exchange.error.message);
+    throw new Error("Could not finish signing in. Try again.");
+  }
+  console.info("[auth] signed in");
+  return true;
+}
 
 type AuthContextValue = {
   /** False when accounts are not set up; the app then works without signing in. */
@@ -40,17 +82,28 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setIsLoading(false);
     });
     const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+
+    // Some Android phones reopen the app with the return link without telling the browser
+    // window it succeeded. Catch the link here too, so sign-in still completes.
+    const onLink = (url: string | null) => {
+      if (!url || !url.includes("code=")) return;
+      console.info("[auth] app opened by return link:", forLogs(url));
+      completeSignIn(url).catch(() => {});
+    };
+    Linking.getInitialURL().then(onLink);
+    const linkSubscription = Linking.addEventListener("url", ({ url }) => onLink(url));
+
     return () => {
       active = false;
       data.subscription.unsubscribe();
+      linkSubscription.remove();
     };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) return;
-    // Expo Go: exp://<computer>:8081 ; built app: focusnotes:// . Both must be allowed in Supabase.
-    // No path, so the return link opens the home screen rather than an unknown page.
-    const redirectTo = makeRedirectUri({ scheme: "focusnotes" });
+    const redirectTo = getAuthReturnAddress();
+    console.info("[auth] opening Google sign-in; Supabase must allow the return address", redirectTo);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -59,15 +112,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (error || !data.url) throw new Error("Could not open Google sign-in. Check your connection and try again.");
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-    if (result.type !== "success") return; // The student closed the window.
+    console.info(
+      "[auth] browser closed:",
+      result.type,
+      result.type === "success" ? forLogs(result.url) : "(no return link reached the app)",
+    );
+    if (result.type !== "success") return; // Closed by the student, or the return link was caught above.
 
-    const { code, error: redirectError } = parseAuthRedirect(result.url);
-    if (redirectError || !code) {
-      console.warn("[auth] sign-in did not return a code:", redirectError ?? result.url);
+    if (!(await completeSignIn(result.url))) {
+      console.warn("[auth] the return link had no code:", forLogs(result.url));
       throw new Error("Google sign-in was not completed. Try again.");
     }
-    const exchange = await supabase.auth.exchangeCodeForSession(code);
-    if (exchange.error) throw new Error("Could not finish signing in. Try again.");
   }, []);
 
   const signOut = useCallback(async () => {
