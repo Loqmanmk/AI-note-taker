@@ -7,24 +7,52 @@
 //
 // Usage: npm start (extra arguments are passed to "expo start", e.g. npm start -- --clear)
 import { spawn } from "node:child_process";
+import { createSocket } from "node:dgram";
 import { lookup } from "node:dns/promises";
 import { networkInterfaces } from "node:os";
 
 const PRIVATE = [/^192\.168\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./];
+// Virtual adapters the phone cannot reach (VirtualBox uses 192.168.56.x, for example).
+const VIRTUAL = /virtualbox|vmware|vethernet|hyper-v|wsl|docker|vbox|loopback|tailscale|zerotier|vpn/i;
 
-/** This computer's address on the local network, preferring home and office ranges. */
-function lanAddress() {
-  const addresses = Object.values(networkInterfaces())
-    .flat()
-    .filter((net) => net && net.family === "IPv4" && !net.internal)
+/**
+ * The address of the network card that carries this computer's internet traffic.
+ * Connecting a UDP socket sends nothing, but makes the system pick the outgoing interface.
+ */
+function routedAddress() {
+  return new Promise((resolve) => {
+    const socket = createSocket("udp4");
+    const done = (address) => {
+      try {
+        socket.close();
+      } catch {}
+      resolve(address);
+    };
+    socket.on("error", () => done(undefined));
+    socket.connect(53, "8.8.8.8", () => {
+      const { address } = socket.address();
+      done(PRIVATE.some((range) => range.test(address)) ? address : undefined);
+    });
+    setTimeout(() => done(undefined), 2000);
+  });
+}
+
+/** Otherwise, a private address on a card that is not obviously virtual, preferring home Wi-Fi ranges. */
+function likelyLanAddress() {
+  const candidates = Object.entries(networkInterfaces())
+    .filter(([name]) => !VIRTUAL.test(name))
+    .flatMap(([, nets]) => nets ?? [])
+    .filter((net) => net.family === "IPv4" && !net.internal && !net.address.startsWith("192.168.56."))
     .map((net) => net.address);
-  // Ranges in order of preference: 192.168.x is the usual home and school Wi-Fi, while 172.x is
-  // often a virtual network (WSL, Docker, VirtualBox) the phone cannot reach.
   for (const range of PRIVATE) {
-    const match = addresses.find((ip) => range.test(ip));
+    const match = candidates.find((ip) => range.test(ip));
     if (match) return match;
   }
-  return addresses[0];
+  return candidates[0];
+}
+
+async function lanAddress() {
+  return (await routedAddress()) ?? likelyLanAddress();
 }
 
 async function resolvesTo(hostname, ip) {
@@ -43,12 +71,13 @@ async function chooseHostname() {
   if (process.env.REACT_NATIVE_PACKAGER_HOSTNAME) return process.env.REACT_NATIVE_PACKAGER_HOSTNAME;
   if (process.argv.includes("--tunnel")) return undefined; // A tunnel already uses a name.
 
-  const ip = lanAddress();
+  const ip = await lanAddress();
   if (!ip) return undefined;
   const hostname = `${ip.replaceAll(".", "-")}.sslip.io`;
 
   if (await resolvesTo(hostname, ip)) {
     console.log(`\nFocusNotes: the phone will reach this computer as ${hostname} (${ip}).`);
+    console.log("FocusNotes: if that is not your Wi-Fi address, set REACT_NATIVE_PACKAGER_HOSTNAME yourself.");
     console.log("FocusNotes: Google sign-in can return to Expo Go. Supabase must allow exp://** .\n");
     return hostname;
   }
@@ -60,10 +89,14 @@ async function chooseHostname() {
 
 const hostname = await chooseHostname();
 const env = hostname ? { ...process.env, REACT_NATIVE_PACKAGER_HOSTNAME: hostname } : process.env;
-const child = spawn("npx", ["expo", "start", ...process.argv.slice(2)], {
-  stdio: "inherit",
-  env,
-  // Windows needs a shell to find npx.
-  shell: process.platform === "win32",
-});
+// Windows needs a shell to run npx; pass one quoted command line rather than an argument list.
+const args = ["expo", "start", ...process.argv.slice(2)];
+const child =
+  process.platform === "win32"
+    ? spawn(["npx", ...args].map((arg) => (/^[\w@./:=-]+$/.test(arg) ? arg : `"${arg.replaceAll('"', '\\"')}"`)).join(" "), {
+        stdio: "inherit",
+        env,
+        shell: true,
+      })
+    : spawn("npx", args, { stdio: "inherit", env });
 child.on("exit", (code) => process.exit(code ?? 0));
