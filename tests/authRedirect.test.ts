@@ -21,9 +21,14 @@ describe("parseAuthRedirect", () => {
 
 describe("expoGoReturnAddress", () => {
   it("points at the development server Expo Go loaded the app from", () => {
-    expect(expoGoReturnAddress("192.168.1.20:8081")).toBe("exp://192.168.1.20:8081");
-    expect(expoGoReturnAddress("192.168.1.20:8081/--/")).toBe("exp://192.168.1.20:8081");
-    expect(expoGoReturnAddress("exp://10.0.0.5:8081")).toBe("exp://10.0.0.5:8081");
+    expect(expoGoReturnAddress("192.168.1.20:8081")).toBe("exp://192.168.1.20:8081/--/");
+    expect(expoGoReturnAddress("192.168.1.20:8081/--/")).toBe("exp://192.168.1.20:8081/--/");
+    expect(expoGoReturnAddress("exp://10.0.0.5:8081")).toBe("exp://10.0.0.5:8081/--/");
+  });
+
+  it("keeps the code readable once Supabase adds it to the address", () => {
+    const back = `${expoGoReturnAddress("192.168.1.163:8081")}?code=abc123`;
+    expect(parseAuthRedirect(back).code).toBe("abc123");
   });
 
   it("returns nothing without a server address", () => {

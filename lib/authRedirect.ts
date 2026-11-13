@@ -23,8 +23,10 @@ export function parseAuthRedirect(url: string): AuthRedirect {
 /**
  * The return address for an app running in Expo Go, which only opens exp:// links that point at
  * the development server it loaded the app from. hostUri looks like "192.168.1.20:8081".
+ * The "/--/" marks the rest of the link as belonging to the app: without it, Expo Go treats the
+ * link as "open this project" and drops the query string, which carries the sign-in code.
  */
 export function expoGoReturnAddress(hostUri: string | undefined): string | undefined {
   const host = hostUri?.trim().replace(/^[a-z]+:\/\//i, "").split("/")[0];
-  return host ? `exp://${host}` : undefined;
+  return host ? `exp://${host}/--/` : undefined;
 }
