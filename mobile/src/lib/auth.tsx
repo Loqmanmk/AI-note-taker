@@ -14,11 +14,12 @@ if (Platform.OS === "web") WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Where Google and Supabase send the student back to. Both forms must be allowed in Supabase.
- * - Expo Go: exp://<computer>:8081. Expo Go cannot open focusnotes:// links. It is detected from
+ * - Expo Go: exp://<computer>:8081/--/ . Expo Go cannot open focusnotes:// links, and it drops the
+ *   query string (the sign-in code) from exp:// links without "/--/". Expo Go is detected from
  *   its native module, because some Expo Go versions report another execution environment, which
  *   makes makeRedirectUri return focusnotes:// there.
  * - Installed app or development build: focusnotes://
- * No path, so the return link opens the home screen rather than an unknown page.
+ * No further path, so the return link opens the home screen rather than an unknown page.
  */
 export function getAuthReturnAddress(): string {
   if (Platform.OS !== "web" && isRunningInExpoGo()) {

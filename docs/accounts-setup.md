@@ -41,7 +41,7 @@ This creates the `classes` table and the rules that let each student see only th
    - **Site URL**: `http://localhost:3000`
    - **Redirect URLs**, add these three:
      - `http://localhost:3000/**` (the website)
-     - `exp://**` (the app in Expo Go)
+     - `exp://**` (the app in Expo Go). If Supabase still sends you to `localhost:3000`, also add the exact address shown at the bottom of the app's sign-in screen, followed by `**`, for example `exp://192.168.1.163:8081/**`. It changes when your computer's network address changes.
      - `focusnotes://**` (the installed app, later)
 
 ## 5. Give the keys to the app
