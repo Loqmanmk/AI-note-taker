@@ -19,3 +19,12 @@ export function parseAuthRedirect(url: string): AuthRedirect {
   const error = params.get("error_description") || params.get("error") || undefined;
   return { code: params.get("code") || undefined, error };
 }
+
+/**
+ * The return address for an app running in Expo Go, which only opens exp:// links that point at
+ * the development server it loaded the app from. hostUri looks like "192.168.1.20:8081".
+ */
+export function expoGoReturnAddress(hostUri: string | undefined): string | undefined {
+  const host = hostUri?.trim().replace(/^[a-z]+:\/\//i, "").split("/")[0];
+  return host ? `exp://${host}` : undefined;
+}
