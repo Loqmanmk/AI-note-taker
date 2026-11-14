@@ -104,8 +104,16 @@ The installed app returns from Google through `focusnotes://`, which is already 
 
 ## Updating the app later
 
-- **Server changes:** `git push`, and Vercel redeploys by itself.
-- **App changes:** run the build command of step 4.5 again and install the new APK over the old one.
+There are three kinds of changes:
+
+- **Server changes** (AI, notes, saving): `git push`, and Vercel redeploys by itself. Nothing to do on phones.
+- **App changes in JavaScript** (screens, texts, design, bug fixes): send an update over the air. Phones download it the next time the app opens, without a new build or a store review. From the `mobile` folder:
+
+  ```bash
+  npx eas-cli@latest update --channel preview --environment preview --message "What changed"
+  ```
+
+- **Native changes** (new phone features or permissions, new native packages): run the build command of step 4.5 again and install the new APK; in the stores, publish a new version. The app uses a "fingerprint" runtime version, so an over-the-air update is never sent to a build whose native parts do not match it.
 
 ## Good to know
 

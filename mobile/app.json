@@ -65,6 +65,12 @@
         "projectId": "344614b7-fd82-4533-abc3-0d3c8dd3cf28"
       }
     },
-    "owner": "loqmanmk"
+    "owner": "loqmanmk",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/344614b7-fd82-4533-abc3-0d3c8dd3cf28"
+    }
   }
 }
