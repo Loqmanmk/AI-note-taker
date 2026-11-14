@@ -39,6 +39,8 @@ Your address is the short one under **Domains** in Vercel, for example `ai-note-
 | Personal info → Email address | Yes | No | Required | Account management |
 | Audio → Voice or sound recordings | Yes | No | Required to create notes | App functionality |
 | App activity → Other user-generated content (the notes) | Yes | No | Required to create notes | App functionality |
+| App activity → Other actions (number and length of classes per month, for plan limits) | Yes | No | Required | App functionality |
+| Financial info → Purchase history (once paid plans open) | Yes | No | Required for paid plans | App functionality |
 
 "Shared" means given to a third party for its own use. Data processed by service providers on your behalf (Supabase, Google's Gemini API, Vercel) is not "shared" under Google Play's definitions, but read Google's current definitions in the form before answering.
 

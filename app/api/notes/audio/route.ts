@@ -1,5 +1,6 @@
 import { resolveAudioMimeType } from "@/lib/audio";
 import { AUDIO_MAX_BYTES, AUDIO_MIN_BYTES } from "@/lib/constants";
+import { RECORDING_BYTES_PER_SECOND } from "@/lib/plans";
 import { isOwnRecordingPath } from "@/lib/recordings";
 import { AudioNotesFieldsSchema, StoredRecordingRequestSchema } from "@/lib/schema";
 import { getAccounts } from "@/lib/server/accounts";
@@ -7,7 +8,14 @@ import type { AuthUser } from "@/lib/server/auth";
 import type { NotesJobResponse } from "@/lib/schema";
 import { getStudyPackGenerator } from "@/lib/server/generatorFactory";
 import { after } from "next/server";
-import { admitRequest, errorResponse, generationFailureMessage, generationResponse } from "@/lib/server/http";
+import {
+  admitRequest,
+  errorResponse,
+  generationFailureMessage,
+  generationResponse,
+  planLimitResponse,
+  recordUsage,
+} from "@/lib/server/http";
 import { supportsAudio, type AudioStudyPackGenerator } from "@/lib/server/studyPackGenerator";
 
 /** The longest a Vercel function may run on the free plan. The generator keeps within it. */
@@ -89,10 +97,22 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
     return refusal ?? errorResponse(415, "This audio format is not supported.");
   }
 
+  // Estimated from the size, which the phone cannot fake, rather than a length it reports.
+  const recordingSeconds = audio.size / RECORDING_BYTES_PER_SECOND;
+  const overLimit = await planLimitResponse(user, recordingSeconds);
+  if (overLimit) {
+    await removeRecording();
+    return overLimit;
+  }
+
   if (!background) {
     // Older app versions wait for the notes in the answer.
     try {
-      return await generationResponse(user, () => generator.generateFromAudio({ ...fields, audio, mimeType }));
+      return await generationResponse(
+        user,
+        () => generator.generateFromAudio({ ...fields, audio, mimeType }),
+        recordingSeconds,
+      );
     } finally {
       await removeRecording();
     }
@@ -112,6 +132,7 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
     try {
       const result = await generator.generateFromAudio({ ...fields, audio, mimeType });
       await repository.complete(user, classId, result.pack);
+      await recordUsage(user, recordingSeconds);
     } catch (err) {
       console.error(`[notes] background job ${classId} failed`, err);
       await repository.fail(user, classId, generationFailureMessage(err)).catch((failErr: unknown) => {

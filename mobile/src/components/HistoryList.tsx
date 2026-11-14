@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { formatRelativeDay, pickIndex } from "@shared/format";
 import type { SavedClass } from "@shared/schema";
 import { formatClock } from "@shared/transcript";
@@ -125,11 +126,12 @@ function QueuedRow({
   onDiscard: (id: string) => void;
 }) {
   const theme = useTheme();
+  const router = useRouter();
   const failed = entry.state === "failed";
   const when = `${formatRelativeDay(entry.createdAt)} · ${formatClock(entry.durationSeconds)} recorded`;
-  const headline = { sending: "Sending your recording…", processing: "Writing your notes…", failed: "Notes not written" }[
-    entry.state
-  ];
+  const headline = entry.limitReached
+    ? "Plan limit reached"
+    : { sending: "Sending your recording…", processing: "Writing your notes…", failed: "Notes not written" }[entry.state];
   const detail = failed
     ? (entry.error ?? "Something went wrong.")
     : entry.state === "processing"
@@ -172,9 +174,21 @@ function QueuedRow({
       <Txt variant="small" style={styles.queuedDetail}>
         {detail}
       </Txt>
+      {failed && entry.limitReached && (
+        <Txt variant="small" style={styles.queuedDetail}>
+          Your recording is kept on this phone: send it again after upgrading, or next month.
+        </Txt>
+      )}
       {failed && (
         <View style={styles.queuedActions}>
-          <Button kind="primary" icon="refresh" label="Retry" onPress={() => onRetry(entry.id)} style={styles.grow} />
+          {entry.limitReached ? (
+            <>
+              <Button kind="primary" icon="diamond-outline" label="See plans" onPress={() => router.push("/plans")} style={styles.grow} />
+              <Button icon="refresh" label="Retry" onPress={() => onRetry(entry.id)} />
+            </>
+          ) : (
+            <Button kind="primary" icon="refresh" label="Retry" onPress={() => onRetry(entry.id)} style={styles.grow} />
+          )}
           <Button icon="trash-outline" label="Delete" onPress={confirmDiscard} />
         </View>
       )}
@@ -260,7 +274,7 @@ const styles = StyleSheet.create({
   queued: { flexDirection: "column", alignItems: "stretch" },
   queuedTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   queuedDetail: { marginTop: spacing.sm },
-  queuedActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  queuedActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   skeletonLines: { gap: spacing.sm },
   skeleton: { height: 12, borderRadius: 6 },
 });

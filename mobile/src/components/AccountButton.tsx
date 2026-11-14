@@ -1,17 +1,22 @@
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePlan } from "@/hooks/usePlan";
 import { useAuth } from "@/lib/auth";
 import { confirmDestructive, showMessage } from "@/lib/confirm";
 import { openPrivacyPolicy } from "@/lib/links";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
+import { PlanUsage } from "./PlanUsage";
 import { Button, Txt } from "./ui";
 
 /** The student's initial in a circle; opens a panel with their account and sign-out. */
 export function AccountButton() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { enabled, session, signOut, deleteAccount } = useAuth();
+  const plan = usePlan();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   if (!enabled || !session) return null;
@@ -80,6 +85,15 @@ export function AccountButton() {
               </Txt>
             </View>
           </View>
+          {plan.status && (
+            <PlanUsage
+              status={plan.status}
+              onPress={() => {
+                setOpen(false);
+                router.push("/plans");
+              }}
+            />
+          )}
           <Txt variant="small" style={styles.note}>
             Your classes are saved in your account, so they also appear on the FocusNotes website.
           </Txt>

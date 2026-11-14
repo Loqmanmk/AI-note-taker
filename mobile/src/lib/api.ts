@@ -81,6 +81,15 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
   return postAndParse(path, init, NotesResponseSchema);
 }
 
+/** The student's plan does not allow this class. The message says why and suggests upgrading. */
+export class PlanLimitError extends Error {
+  override name = "PlanLimitError";
+}
+
+function isPlanLimit(answer: ServerAnswer): boolean {
+  return answer.status === 402 && (answer.data as { code?: unknown } | null)?.code === "plan_limit";
+}
+
 /** Sends a request and checks the answer has the expected shape. Throws an Error safe to show. */
 async function postAndParse<T>(path: string, init: RequestInit, schema: z.ZodType<T>): Promise<T> {
   const baseUrl = getApiBaseUrl();
@@ -109,6 +118,8 @@ async function postAndParse<T>(path: string, init: RequestInit, schema: z.ZodTyp
         : `The server at ${baseUrl} refused the request before reaching FocusNotes. If it is on Vercel, turn off Deployment Protection or use the project's main address.`,
     );
   }
+
+  if (isPlanLimit(answer)) throw new PlanLimitError(errorMessage(answer.data) ?? "Your plan's limit is reached.");
 
   if (answer.status < 200 || answer.status >= 300) {
     console.warn(`[api] ${path} answered ${answer.status}:`, answer.data);

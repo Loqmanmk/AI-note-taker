@@ -1,9 +1,9 @@
 import "server-only";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { CLASSES_TABLE } from "../classes";
 import type { StudyPack } from "../schema";
 import type { SupabaseConfig } from "../supabaseConfig";
 import type { AuthUser } from "./auth";
+import { userClient } from "./userClient";
 
 /** Saves study packs to a student's account. */
 export interface ClassRepository {
@@ -24,12 +24,8 @@ function packColumns(pack: StudyPack) {
 export class SupabaseClassRepository implements ClassRepository {
   constructor(private readonly config: SupabaseConfig) {}
 
-  /** Acts as the student, so the database rules apply: a student can only write their own classes. */
-  private clientFor(user: AuthUser): SupabaseClient {
-    return createClient(this.config.url, this.config.publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      global: { headers: { Authorization: `Bearer ${user.accessToken}` } },
-    });
+  private clientFor(user: AuthUser) {
+    return userClient(this.config, user);
   }
 
   async save(user: AuthUser, pack: StudyPack): Promise<string> {

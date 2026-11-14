@@ -33,6 +33,10 @@ export default function PrivacyPage() {
           re-explanations.
         </li>
         <li>
+          <strong>Your plan and how many classes you sent this month</strong>, with their length, to apply your
+          plan&apos;s limits. When paid plans open, payments are handled by Google Play: we never see your card.
+        </li>
+        <li>
           <strong>Your settings</strong>, such as the language of your notes, stored on your phone.
         </li>
       </ul>

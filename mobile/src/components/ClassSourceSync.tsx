@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { AccountClassSource, LocalClassSource } from "@/lib/classSources";
 import { classStore } from "@/lib/classStore";
+import { planStore } from "@/lib/planStore";
 import { sendQueue } from "@/lib/sendQueue";
 import { supabase } from "@/lib/supabase";
 
@@ -20,6 +21,10 @@ export function ClassSourceSync() {
 
     // Recordings waiting for notes belong to the student who made them.
     sendQueue.setUser(enabled ? (userId ?? SIGNED_OUT) : null);
+
+    // Each student has their own plan.
+    planStore.clear();
+    if (enabled && userId) planStore.refresh();
   }, [enabled, userId]);
 
   return null;

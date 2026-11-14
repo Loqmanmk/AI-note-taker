@@ -4,10 +4,11 @@ import { AppState, Platform } from "react-native";
 import { z } from "zod";
 import { NOTE_LANGUAGE_CODES } from "@shared/constants";
 import type { SavedClass } from "@shared/schema";
-import { sendRecording } from "./api";
+import { PlanLimitError, sendRecording } from "./api";
 import { AccountClassSource } from "./classSources";
 import { classStore } from "./classStore";
 import { notifyNotesFailed, notifyNotesReady } from "./notifications";
+import { planStore } from "./planStore";
 import { supabase } from "./supabase";
 
 /**
@@ -27,6 +28,8 @@ const EntrySchema = z.object({
   /** The class the server is writing, once it accepted the recording. */
   classId: z.string().optional(),
   error: z.string().optional(),
+  /** Refused because the student's plan is used up: the app offers the plans. */
+  limitReached: z.boolean().optional(),
 });
 export type QueueEntry = z.infer<typeof EntrySchema>;
 export type NewRecording = Pick<QueueEntry, "uri" | "durationSeconds" | "lostTimes" | "language">;
@@ -106,7 +109,7 @@ class SendQueue {
     const entry = this.all.find((e) => e.id === id);
     if (!entry || entry.state !== "failed") return;
     if (entry.classId) this.removeServerClass(entry.classId);
-    this.patch(id, { state: "sending", classId: undefined, error: undefined });
+    this.patch(id, { state: "sending", classId: undefined, error: undefined, limitReached: undefined });
     this.run(id);
   }
 
@@ -143,6 +146,7 @@ class SendQueue {
           if (outcome.kind === "processing") {
             this.patch(id, { state: "processing", classId: outcome.job.classId });
             this.updatePolling();
+            planStore.refresh(); // The class now counts in the month's usage.
           } else {
             const { pack, demo, classId } = outcome.response;
             this.deliver({ id: classId ?? entry.id, date: entry.createdAt, pack, demo }, id);
@@ -154,7 +158,9 @@ class SendQueue {
             await sleep(RETRY_DELAYS_MS[attempt]);
             continue;
           }
-          this.patch(id, { state: "failed", error: message });
+          const limitReached = err instanceof PlanLimitError;
+          this.patch(id, { state: "failed", error: message, limitReached });
+          if (limitReached) planStore.refresh();
           return;
         }
       }
@@ -186,6 +192,7 @@ class SendQueue {
         const error = pending.error ?? "Your notes could not be written.";
         this.patch(entry.id, { state: "failed", error });
         notifyNotesFailed(error);
+        planStore.refresh(); // A failed class does not count.
       } else if (!pending) {
         this.patch(entry.id, { state: "failed", error: "This class could not be found. Send it again." });
       }

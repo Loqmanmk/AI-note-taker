@@ -1,3 +1,4 @@
+import { checkAllowance } from "../plans";
 import type { NotesResponse } from "../schema";
 import { getAccounts } from "./accounts";
 import type { AuthUser } from "./auth";
@@ -28,6 +29,40 @@ export function errorResponse(status: number, message: string, headers?: Headers
   return Response.json({ error: message }, { status, headers });
 }
 
+/** The code the apps look for to offer an upgrade. */
+export const PLAN_LIMIT_CODE = "plan_limit";
+
+/**
+ * Returns a 402 response when the student's plan does not allow this class, otherwise nothing.
+ * If the plan cannot be read, the class is allowed and the problem logged: an outage of the
+ * usage tables should not stop students from getting their notes.
+ */
+export async function planLimitResponse(user: AuthUser | null, recordingSeconds: number): Promise<Response | undefined> {
+  const plans = getAccounts().plans;
+  if (!user || !plans) return undefined;
+  let allowance: ReturnType<typeof checkAllowance>;
+  try {
+    allowance = checkAllowance(await plans.status(user), recordingSeconds);
+  } catch (err) {
+    console.error("[plans] could not check the plan; allowing this class", err);
+    return undefined;
+  }
+  if (allowance.ok) return undefined;
+  return Response.json(
+    { error: allowance.message, code: PLAN_LIMIT_CODE, reason: allowance.reason },
+    { status: 402, headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+/** Counts a class against the student's plan. A failure is logged: the notes are already written. */
+export async function recordUsage(user: AuthUser | null, recordingSeconds: number): Promise<void> {
+  const plans = getAccounts().plans;
+  if (!user || !plans) return;
+  await plans.recordUsage(user, recordingSeconds).catch((err: unknown) => {
+    console.error("[plans] could not record usage", err);
+  });
+}
+
 function clientKey(req: Request, user: AuthUser | null): string {
   // A signed-in student is limited per account, wherever they connect from.
   if (user) return `user:${user.id}`;
@@ -56,11 +91,17 @@ export async function admitRequest(req: Request): Promise<{ user: AuthUser | nul
 }
 
 /** Saves a new study pack to the student's account. A failed save is logged and the notes are still returned. */
-async function saveToAccount(user: AuthUser | null, result: GenerationResult): Promise<string | undefined> {
+async function saveToAccount(
+  user: AuthUser | null,
+  result: GenerationResult,
+  recordingSeconds: number,
+): Promise<string | undefined> {
   const repository = getAccounts().repository;
   if (!user || !repository || result.demo) return undefined;
   try {
-    return await repository.save(user, result.pack);
+    const classId = await repository.save(user, result.pack);
+    await recordUsage(user, recordingSeconds);
+    return classId;
   } catch (err) {
     console.error("[notes] could not save the class", err);
     return undefined;
@@ -71,10 +112,14 @@ async function saveToAccount(user: AuthUser | null, result: GenerationResult): P
  * Runs a generation, saves the result for a signed-in student, and turns the outcome into an HTTP response.
  * The cause of a failure is logged for the operator; the student only sees a safe message.
  */
-export async function generationResponse(user: AuthUser | null, run: () => Promise<GenerationResult>): Promise<Response> {
+export async function generationResponse(
+  user: AuthUser | null,
+  run: () => Promise<GenerationResult>,
+  recordingSeconds = 0,
+): Promise<Response> {
   try {
     const result = await run();
-    const classId = await saveToAccount(user, result);
+    const classId = await saveToAccount(user, result, recordingSeconds);
     const body: NotesResponse = { ...result, ...(classId ? { classId } : {}) };
     return Response.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {

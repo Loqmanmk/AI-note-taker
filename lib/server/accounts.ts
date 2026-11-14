@@ -2,6 +2,7 @@ import "server-only";
 import { readSupabaseConfig } from "../supabaseConfig";
 import { SupabaseAuthVerifier, type AuthVerifier } from "./auth";
 import { SupabaseClassRepository, type ClassRepository } from "./classRepository";
+import { SupabasePlanRepository, type PlanRepository } from "./planRepository";
 import { SupabaseRecordingStore, type RecordingStore } from "./recordingStore";
 
 export type Accounts = {
@@ -9,6 +10,7 @@ export type Accounts = {
   verifier: AuthVerifier | null;
   repository: ClassRepository | null;
   recordings: RecordingStore | null;
+  plans: PlanRepository | null;
   /** Whether every request must come from a signed-in student. */
   required: boolean;
 };
@@ -27,13 +29,14 @@ export function getAccounts(): Accounts {
       verifier: new SupabaseAuthVerifier(config),
       repository: new SupabaseClassRepository(config),
       recordings: new SupabaseRecordingStore(config),
+      plans: new SupabasePlanRepository(config),
       required: true,
     };
   } else {
     if (process.env.NODE_ENV !== "production") {
       console.warn("[accounts] Supabase is not configured: sign-in is off and classes are not saved online.");
     }
-    accounts = { verifier: null, repository: null, recordings: null, required: process.env.NODE_ENV === "production" };
+    accounts = { verifier: null, repository: null, recordings: null, plans: null, required: process.env.NODE_ENV === "production" };
   }
   return accounts;
 }

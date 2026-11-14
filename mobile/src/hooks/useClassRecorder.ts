@@ -49,9 +49,19 @@ function tap(style: Haptics.ImpactFeedbackStyle) {
 
 export type RecorderPhase = "idle" | "recording" | "recorded";
 
-/** Records one class and remembers when the student pressed "I'm lost". */
-export function useClassRecorder() {
-  const recorder = useAudioRecorder(CLASS_RECORDING);
+/**
+ * Records one class and remembers when the student pressed "I'm lost".
+ * With maxSeconds, the recording stops by itself at that length (the plan's longest class),
+ * even with the phone locked, since the phone's audio system enforces it.
+ */
+export function useClassRecorder(maxSeconds?: number) {
+  /** Whether a recording is under way that the student has not stopped. */
+  const recordingNow = useRef(false);
+  /** Handles the phone stopping the recording at the plan's limit; set after each render. */
+  const onStoppedByPhone = useRef<(url: string | null) => void>(() => {});
+  const recorder = useAudioRecorder(CLASS_RECORDING, (status) => {
+    if (status.isFinished && recordingNow.current) onStoppedByPhone.current(status.url);
+  });
   const state = useAudioRecorderState(recorder, STATUS_INTERVAL_MS);
 
   const [phase, setPhase] = useState<RecorderPhase>("idle");
@@ -60,7 +70,10 @@ export function useClassRecorder() {
   const [finalSeconds, setFinalSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>([]);
   const [error, setError] = useState("");
+  const [stoppedAtLimit, setStoppedAtLimit] = useState(false);
   const lastSample = useRef(-1);
+  /** The latest length seen while recording: the status reads 0 once the phone stopped it. */
+  const elapsed = useRef(0);
 
   // Keep a short history of sound levels for the meter, one sample per status update.
   const sampleTime = state.durationMillis;
@@ -68,6 +81,7 @@ export function useClassRecorder() {
   useEffect(() => {
     if (phase !== "recording" || sampleTime === lastSample.current) return;
     lastSample.current = sampleTime;
+    elapsed.current = Math.max(elapsed.current, sampleTime / 1000);
     setLevels((prev) => [...prev.slice(1 - LEVEL_HISTORY), sampleLevel]);
   }, [phase, sampleTime, sampleLevel]);
 
@@ -84,8 +98,12 @@ export function useClassRecorder() {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, allowsBackgroundRecording: true });
       // A new file for each class, so a recording waiting to be sent is never overwritten.
       await recorder.prepareToRecordAsync({ fileName: `class-${Date.now()}` });
-      recorder.record();
+      // The phone's audio system stops at the plan's longest class, even with the app asleep.
+      recorder.record(maxSeconds ? { forDuration: maxSeconds } : undefined);
+      recordingNow.current = true;
       tap(Haptics.ImpactFeedbackStyle.Medium);
+      elapsed.current = 0;
+      setStoppedAtLimit(false);
       setLostTimes([]);
       setLevels([]);
       setRecording(null);
@@ -93,26 +111,44 @@ export function useClassRecorder() {
     } catch {
       setError("Could not start recording. Close other apps that use the microphone and try again.");
     }
-  }, [recorder]);
+  }, [recorder, maxSeconds]);
+
+  /** Keeps the finished recording, ready to be sent. */
+  const finish = useCallback(
+    (seconds: number, uri: string | null) => {
+      setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false }).catch(() => {});
+      if (!uri) {
+        setError("The recording could not be saved. Try again.");
+        setPhase("idle");
+        return;
+      }
+      setFinalSeconds(seconds);
+      setRecording({ uri, lostTimes });
+      setPhase("recorded");
+    },
+    [lostTimes],
+  );
 
   const stop = useCallback(async () => {
-    const seconds = recorder.getStatus().durationMillis / 1000;
+    recordingNow.current = false;
+    const seconds = Math.max(recorder.getStatus().durationMillis / 1000, elapsed.current);
     tap(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false });
     } catch {
       // Stopping twice or after an interruption still leaves a usable file.
     }
-    if (!recorder.uri) {
-      setError("The recording could not be saved. Try again.");
-      setPhase("idle");
-      return;
-    }
-    setFinalSeconds(seconds);
-    setRecording({ uri: recorder.uri, lostTimes });
-    setPhase("recorded");
-  }, [recorder, lostTimes]);
+    finish(seconds, recorder.uri);
+  }, [recorder, finish]);
+
+  useEffect(() => {
+    onStoppedByPhone.current = (url) => {
+      recordingNow.current = false;
+      tap(Haptics.ImpactFeedbackStyle.Heavy);
+      finish(maxSeconds ?? elapsed.current, url ?? recorder.uri);
+      setStoppedAtLimit(true);
+    };
+  });
 
   /** Marks the current moment and returns its time in seconds. */
   const markLost = useCallback((): number => {
@@ -129,6 +165,7 @@ export function useClassRecorder() {
     setLevels([]);
     setFinalSeconds(0);
     setError("");
+    setStoppedAtLimit(false);
     setPhase("idle");
   }, []);
 
@@ -147,6 +184,7 @@ export function useClassRecorder() {
     setLevels([]);
     setFinalSeconds(0);
     setError("");
+    setStoppedAtLimit(false);
     setPhase("idle");
   }, [recording]);
 
@@ -157,6 +195,9 @@ export function useClassRecorder() {
     lostCount: lostTimes.length,
     recording,
     error,
+    /** Whether the recording ended because it reached the plan's longest class. */
+    stoppedAtLimit,
+    maxSeconds,
     start,
     stop,
     markLost,

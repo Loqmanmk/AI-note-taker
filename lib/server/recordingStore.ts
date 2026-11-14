@@ -1,8 +1,8 @@
 import "server-only";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RECORDINGS_BUCKET } from "../recordings";
 import type { SupabaseConfig } from "../supabaseConfig";
 import type { AuthUser } from "./auth";
+import { userClient } from "./userClient";
 
 /** Where phones upload class recordings before notes are written. */
 export interface RecordingStore {
@@ -14,12 +14,8 @@ export interface RecordingStore {
 export class SupabaseRecordingStore implements RecordingStore {
   constructor(private readonly config: SupabaseConfig) {}
 
-  /** Acts as the student, so the storage rules apply: only their own folder is reachable. */
-  private clientFor(user: AuthUser): SupabaseClient {
-    return createClient(this.config.url, this.config.publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      global: { headers: { Authorization: `Bearer ${user.accessToken}` } },
-    });
+  private clientFor(user: AuthUser) {
+    return userClient(this.config, user);
   }
 
   async download(user: AuthUser, path: string): Promise<Blob | null> {

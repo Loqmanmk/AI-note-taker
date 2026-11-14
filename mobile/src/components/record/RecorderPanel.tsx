@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { formatMinutes } from "@shared/plans";
 import { formatClock } from "@shared/transcript";
 import type { ClassRecorder } from "@/hooks/useClassRecorder";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
@@ -31,10 +32,31 @@ const HINTS = {
   recorded: "",
 };
 
-export function RecorderPanel({ recorder, disabled }: { recorder: ClassRecorder; disabled?: boolean }) {
+/** Warn this long before the plan's limit stops the recording. */
+const WARN_BEFORE_LIMIT_SECONDS = 5 * 60;
+
+type RecorderPanelProps = {
+  recorder: ClassRecorder;
+  disabled?: boolean;
+  /** Replaces starting the recording, for example to explain that the month's classes are used up. */
+  onStart?: () => void;
+  /** The student's plan name, shown with its longest class. */
+  planName?: string;
+};
+
+export function RecorderPanel({ recorder, disabled, onStart, planName }: RecorderPanelProps) {
   const theme = useTheme();
-  const { phase, seconds, levels, lostCount } = recorder;
+  const { phase, seconds, levels, lostCount, maxSeconds } = recorder;
   const isRecording = phase === "recording";
+  const remaining = maxSeconds === undefined ? Infinity : maxSeconds - seconds;
+  const limitNote =
+    maxSeconds === undefined
+      ? ""
+      : isRecording && remaining <= WARN_BEFORE_LIMIT_SECONDS
+        ? `Recording stops in ${formatClock(Math.max(0, remaining))}, the longest class${planName ? ` on ${planName}` : ""}.`
+        : phase === "idle"
+          ? `Up to ${formatMinutes(maxSeconds / 60)} per class${planName ? ` on ${planName}` : ""}.`
+          : "";
 
   return (
     <Card style={styles.card}>
@@ -61,13 +83,19 @@ export function RecorderPanel({ recorder, disabled }: { recorder: ClassRecorder;
         <RecordButton
           recording={isRecording}
           disabled={disabled}
-          onPress={isRecording ? recorder.stop : recorder.start}
+          onPress={isRecording ? recorder.stop : (onStart ?? recorder.start)}
         />
       )}
 
       {HINTS[phase] !== "" && (
         <Txt variant="small" style={styles.hint}>
           {HINTS[phase]}
+        </Txt>
+      )}
+
+      {limitNote !== "" && (
+        <Txt variant="small" color={isRecording ? theme.lostInk : undefined} style={styles.hint}>
+          {limitNote}
         </Txt>
       )}
 

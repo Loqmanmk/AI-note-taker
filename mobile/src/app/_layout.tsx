@@ -73,6 +73,7 @@ function RootNavigator() {
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="index" options={{ headerShown: false, title: "FocusNotes" }} />
           <Stack.Screen name="class/[id]" options={{ title: "" }} />
+          <Stack.Screen name="plans" options={{ title: "Plans" }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false, title: "Sign in" }} />

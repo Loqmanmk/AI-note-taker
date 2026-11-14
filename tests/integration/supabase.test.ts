@@ -11,6 +11,8 @@ import { SupabaseAuthVerifier, type AuthUser } from "../../lib/server/auth";
 import { SupabaseClassRepository } from "../../lib/server/classRepository";
 import { SupabaseRecordingStore } from "../../lib/server/recordingStore";
 import { RECORDINGS_BUCKET, recordingPath } from "../../lib/recordings";
+import { CLASS_USAGE_TABLE, SUBSCRIPTIONS_TABLE, readPlanStatus } from "../../lib/planStatus";
+import { SupabasePlanRepository } from "../../lib/server/planRepository";
 
 const url = process.env.SUPABASE_TEST_URL ?? "";
 const publishableKey = process.env.SUPABASE_TEST_PUBLISHABLE_KEY ?? "";
@@ -174,5 +176,46 @@ describe.skipIf(!url || !publishableKey || !secretKey)("Supabase accounts (integ
 
     // Alice is untouched.
     expect((await admin.auth.admin.getUserById(alice.user.id)).data.user?.id).toBe(alice.user.id);
+  });
+
+  it("counts a student's classes against their plan, which only the payment system can change", async () => {
+    const dave = await makeStudent("dave");
+    const plans = new SupabasePlanRepository(config);
+    const aliceBefore = (await plans.status(alice.user)).classesUsed;
+    expect(await plans.status(dave.user)).toEqual({ plan: "free", classesUsed: 0, classesPerMonth: 3, maxRecordingMinutes: 30 });
+
+    await plans.recordUsage(dave.user, 600);
+    // A class being written counts too, so parallel sends cannot go past the limit.
+    await new SupabaseClassRepository(config).createProcessing(dave.user);
+    expect((await plans.status(dave.user)).classesUsed).toBe(2);
+    // Other students' usage is not counted, nor visible.
+    expect((await plans.status(alice.user)).classesUsed).toBe(aliceBefore);
+
+    // A student cannot give themselves a plan, nor erase their usage.
+    const grant = await dave.client
+      .from(SUBSCRIPTIONS_TABLE)
+      .insert({ user_id: dave.user.id, plan: "pro" })
+      .setHeader("Authorization", `Bearer ${dave.user.accessToken}`);
+    expect(grant.error).not.toBeNull();
+    await dave.client.from(CLASS_USAGE_TABLE).delete().eq("user_id", dave.user.id).setHeader("Authorization", `Bearer ${dave.user.accessToken}`);
+    expect((await plans.status(dave.user)).classesUsed).toBe(2);
+    // Nor record usage for someone else.
+    const forged = await dave.client
+      .from(CLASS_USAGE_TABLE)
+      .insert({ user_id: alice.user.id })
+      .setHeader("Authorization", `Bearer ${dave.user.accessToken}`);
+    expect(forged.error).not.toBeNull();
+
+    // The payment system (service role) grants Premium; it lapses when it expires.
+    await admin.from(SUBSCRIPTIONS_TABLE).upsert({ user_id: dave.user.id, plan: "premium", expires_at: "2999-01-01T00:00:00Z" });
+    expect(await plans.status(dave.user)).toMatchObject({ plan: "premium", classesPerMonth: 30, maxRecordingMinutes: 120 });
+    await admin.from(SUBSCRIPTIONS_TABLE).update({ expires_at: "2000-01-01T00:00:00Z" }).eq("user_id", dave.user.id);
+    expect((await plans.status(dave.user)).plan).toBe("free");
+
+    // The phone reads the same status with its own session.
+    const fromPhone = await readPlanStatus(
+      createClient(url, publishableKey, { auth: noSession, global: { headers: { Authorization: `Bearer ${dave.user.accessToken}` } } }),
+    );
+    expect(fromPhone.classesUsed).toBe(2);
   });
 });
