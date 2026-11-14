@@ -19,6 +19,11 @@ const ERROR_RESPONSES: Record<GenerationErrorCode, { status: number; message: st
   unavailable: { status: 502, message: BUSY },
 };
 
+/** A message safe to show the student for any failure while writing notes. */
+export function generationFailureMessage(err: unknown): string {
+  return err instanceof GenerationError ? ERROR_RESPONSES[err.code].message : "Something went wrong. Try again.";
+}
+
 export function errorResponse(status: number, message: string, headers?: HeadersInit) {
   return Response.json({ error: message }, { status, headers });
 }

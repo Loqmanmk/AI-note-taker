@@ -5,7 +5,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CLASSES_TABLE, CLASS_COLUMNS, rowsToSavedClasses } from "../../lib/classes";
+import { CLASSES_TABLE, CLASS_COLUMNS, rowsToPendingClasses, rowsToSavedClasses } from "../../lib/classes";
 import { SAMPLE_PACK } from "../../lib/sample";
 import { SupabaseAuthVerifier, type AuthUser } from "../../lib/server/auth";
 import { SupabaseClassRepository } from "../../lib/server/classRepository";
@@ -123,5 +123,36 @@ describe.skipIf(!url || !publishableKey || !secretKey)("Supabase accounts (integ
     expect(blob?.size).toBe(audio.length);
     await store.remove(alice.user, path);
     expect(await store.download(alice.user, path)).toBeNull();
+  });
+
+  it("runs a background job: processing, then ready or failed, only by its owner", async () => {
+    const repository = new SupabaseClassRepository(config);
+    const read = async (student: Student) =>
+      (await student.client.from(CLASSES_TABLE).select(CLASS_COLUMNS).setHeader("Authorization", `Bearer ${student.user.accessToken}`)).data;
+
+    const done = await repository.createProcessing(alice.user);
+    const broken = await repository.createProcessing(alice.user);
+    expect(rowsToPendingClasses(await read(alice)).map((c) => c.id)).toEqual(expect.arrayContaining([done, broken]));
+
+    // Bob cannot finish or fail Alice's classes.
+    await expect(repository.complete(bob.user, done, SAMPLE_PACK)).rejects.toThrow();
+    await expect(repository.fail(bob.user, broken, "x")).rejects.toThrow();
+
+    await repository.complete(alice.user, done, SAMPLE_PACK);
+    await repository.fail(alice.user, broken, "The AI service is busy right now.");
+    const rows = await read(alice);
+    expect(rowsToSavedClasses(rows).map((c) => c.id)).toContain(done);
+    expect(rowsToPendingClasses(rows)).toContainEqual(
+      expect.objectContaining({ id: broken, status: "failed", error: "The AI service is busy right now." }),
+    );
+
+    // A class cannot be marked ready without notes.
+    const empty = await repository.createProcessing(alice.user);
+    const invalid = await alice.client
+      .from(CLASSES_TABLE)
+      .update({ status: "ready" })
+      .eq("id", empty)
+      .setHeader("Authorization", `Bearer ${alice.user.accessToken}`);
+    expect(invalid.error).not.toBeNull();
   });
 });

@@ -4,8 +4,10 @@ import { isOwnRecordingPath } from "@/lib/recordings";
 import { AudioNotesFieldsSchema, StoredRecordingRequestSchema } from "@/lib/schema";
 import { getAccounts } from "@/lib/server/accounts";
 import type { AuthUser } from "@/lib/server/auth";
+import type { NotesJobResponse } from "@/lib/schema";
 import { getStudyPackGenerator } from "@/lib/server/generatorFactory";
-import { admitRequest, errorResponse, generationResponse } from "@/lib/server/http";
+import { after } from "next/server";
+import { admitRequest, errorResponse, generationFailureMessage, generationResponse } from "@/lib/server/http";
 import { supportsAudio, type AudioStudyPackGenerator } from "@/lib/server/studyPackGenerator";
 
 /** The longest a Vercel function may run on the free plan. The generator keeps within it. */
@@ -20,6 +22,8 @@ const TOO_LONG = "The recording is too long. Split the class into two parts.";
  * Creates a study pack from a recording of a class, sent in one of two ways:
  * - JSON { recordingPath, language, lostTimes }: the phone already uploaded the recording to
  *   storage. Used with accounts, because hosting platforms cap request size (Vercel: 4.5 MB).
+ *   Answers 202 { classId, status: "processing" } at once and writes the notes in the background:
+ *   the class turns "ready" or "failed" in the student's account.
  * - Multipart form data with "audio", "language" and "lostTimes": the recording itself. Used
  *   when accounts are off, typically on a local computer.
  */
@@ -47,8 +51,8 @@ export async function POST(req: Request) {
 }
 
 async function fromStorage(req: Request, user: AuthUser | null, generator: AudioStudyPackGenerator) {
-  const recordings = getAccounts().recordings;
-  if (!user || !recordings) return errorResponse(400, "Sign in to send recordings this way.");
+  const { recordings, repository } = getAccounts();
+  if (!user || !recordings || !repository) return errorResponse(400, "Sign in to send recordings this way.");
 
   const raw = await req.text();
   if (raw.length > MAX_JSON_BODY_CHARS) return errorResponse(413, "The request is too large.");
@@ -64,22 +68,52 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
   const { recordingPath, ...fields } = parsed.data;
   if (!isOwnRecordingPath(user.id, recordingPath)) return errorResponse(400, "Invalid recording.");
 
-  try {
-    const audio = await recordings.download(user, recordingPath);
-    if (!audio) return errorResponse(404, "The recording could not be found. Record the class again.");
-    if (audio.size > AUDIO_MAX_BYTES) return errorResponse(413, TOO_LONG);
-    if (audio.size < AUDIO_MIN_BYTES) return errorResponse(400, "The recording is too short to make notes from.");
-
-    const mimeType = resolveAudioMimeType(audio.type, recordingPath);
-    if (!mimeType) return errorResponse(415, "This audio format is not supported.");
-
-    return await generationResponse(user, () => generator.generateFromAudio({ ...fields, audio, mimeType }));
-  } finally {
-    // A recording is only kept until its notes are written, whatever the outcome.
-    await recordings.remove(user, recordingPath).catch((err: unknown) => {
+  // A recording is only kept until its notes are written, whatever the outcome.
+  const removeRecording = () =>
+    recordings.remove(user, recordingPath).catch((err: unknown) => {
       console.error("[notes] could not delete the recording", err);
     });
+
+  const audio = await recordings.download(user, recordingPath);
+  const refusal = !audio
+    ? errorResponse(404, "The recording could not be found. Record the class again.")
+    : audio.size > AUDIO_MAX_BYTES
+      ? errorResponse(413, TOO_LONG)
+      : audio.size < AUDIO_MIN_BYTES
+        ? errorResponse(400, "The recording is too short to make notes from.")
+        : null;
+  const mimeType = resolveAudioMimeType(audio?.type ?? "", recordingPath);
+  if (refusal || !audio || !mimeType) {
+    await removeRecording();
+    return refusal ?? errorResponse(415, "This audio format is not supported.");
   }
+
+  let classId: string;
+  try {
+    classId = await repository.createProcessing(user);
+  } catch (err) {
+    console.error("[notes] could not create the class", err);
+    await removeRecording();
+    return errorResponse(500, "Could not save the class. Try again.");
+  }
+
+  // Answer now; the student can leave the app while the notes are written.
+  after(async () => {
+    try {
+      const result = await generator.generateFromAudio({ ...fields, audio, mimeType });
+      await repository.complete(user, classId, result.pack);
+    } catch (err) {
+      console.error(`[notes] background job ${classId} failed`, err);
+      await repository.fail(user, classId, generationFailureMessage(err)).catch((failErr: unknown) => {
+        console.error("[notes] could not mark the class as failed", failErr);
+      });
+    } finally {
+      await removeRecording();
+    }
+  });
+
+  const body: NotesJobResponse = { classId, status: "processing" };
+  return Response.json(body, { status: 202, headers: { "Cache-Control": "no-store" } });
 }
 
 function parseJsonField(value: FormDataEntryValue | null): unknown {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rowsToSavedClasses } from "../lib/classes";
+import { rowsToPendingClasses, rowsToSavedClasses } from "../lib/classes";
 import { SAMPLE_PACK } from "../lib/sample";
 import { readSupabaseConfig } from "../lib/supabaseConfig";
 
@@ -17,6 +17,29 @@ describe("rowsToSavedClasses", () => {
 
   it("returns nothing for a non-list", () => {
     expect(rowsToSavedClasses(null)).toEqual([]);
+  });
+
+  it("keeps only finished classes", () => {
+    const rows = [
+      { id: "ready", created_at: "t", status: "ready", pack: SAMPLE_PACK },
+      { id: "busy", created_at: "t", status: "processing", pack: null },
+      { id: "bad", created_at: "t", status: "failed", error: "Busy", pack: null },
+    ];
+    expect(rowsToSavedClasses(rows).map((c) => c.id)).toEqual(["ready"]);
+  });
+});
+
+describe("rowsToPendingClasses", () => {
+  it("lists classes being written and failed ones, with their reason", () => {
+    const rows = [
+      { id: "ready", created_at: "t", status: "ready", pack: SAMPLE_PACK },
+      { id: "busy", created_at: "t1", status: "processing", error: null, pack: null },
+      { id: "bad", created_at: "t2", status: "failed", error: "The AI service is busy.", pack: null },
+    ];
+    expect(rowsToPendingClasses(rows)).toEqual([
+      { id: "busy", date: "t1", status: "processing" },
+      { id: "bad", date: "t2", status: "failed", error: "The AI service is busy." },
+    ]);
   });
 });
 

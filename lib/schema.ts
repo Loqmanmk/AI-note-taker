@@ -77,6 +77,13 @@ export const NotesResponseSchema = z.object({
 });
 export type NotesResponse = z.infer<typeof NotesResponseSchema>;
 
+/** Answer of POST /api/notes/audio when the notes are written in the background. */
+export const NotesJobResponseSchema = z.object({
+  classId: z.string(),
+  status: z.literal("processing"),
+});
+export type NotesJobResponse = z.infer<typeof NotesJobResponseSchema>;
+
 /** A study pack saved in the browser. */
 export const SavedClassSchema = z.object({
   id: z.string(),
