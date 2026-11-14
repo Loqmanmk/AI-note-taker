@@ -16,9 +16,12 @@ import { CrashScreen } from "@/components/CrashScreen";
 import { languageStore } from "@/i18n";
 import { ensureLayoutDirection } from "@/i18n/direction";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { initErrorTracking, reportError, withErrorTracking } from "@/lib/errorTracking";
 import { onNotesNotificationOpened } from "@/lib/notifications";
 import { fonts, useTheme } from "@/lib/theme";
 import { welcomeStore } from "@/lib/welcome";
+
+initErrorTracking();
 
 // Keep the splash screen up until fonts and the saved session are ready, so nothing jumps.
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -27,11 +30,14 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
   useEffect(() => {
     console.error("[app] a screen failed", error);
+    reportError(error);
   }, [error]);
   return <CrashScreen onRetry={() => retry()} />;
 }
 
-export default function RootLayout() {
+export default withErrorTracking(RootLayout);
+
+function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>

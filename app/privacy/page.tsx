@@ -37,7 +37,12 @@ export default function PrivacyPage() {
           plan&apos;s limits. When paid plans open, payments are handled by Google Play: we never see your card.
         </li>
         <li>
-          <strong>Your settings</strong>, such as the language of your notes, stored on your phone.
+          <strong>Error reports</strong> when the app crashes or hits an error: what went wrong, your phone model,
+          Android version, app version and an anonymous account number. They never include your name, email,
+          recordings or notes. We use them only to fix problems.
+        </li>
+        <li>
+          <strong>Your settings</strong>, such as the language of your notes and of the app, stored on your phone.
         </li>
       </ul>
       <p>We do not collect your location or your contacts, and we do not show advertising.</p>
@@ -66,6 +71,9 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Vercel</strong>: hosting of our website and server.
+        </li>
+        <li>
+          <strong>Sentry</strong>: receiving the app&apos;s error reports, so we can fix crashes.
         </li>
         <li>
           <strong>Google Sign-In</strong>: confirming your identity when you sign in.

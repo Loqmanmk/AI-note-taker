@@ -41,12 +41,14 @@ Your address is the short one under **Domains** in Vercel, for example `ai-note-
 | App activity → Other user-generated content (the notes) | Yes | No | Required to create notes | App functionality |
 | App activity → Other actions (number and length of classes per month, for plan limits) | Yes | No | Required | App functionality |
 | Financial info → Purchase history (once paid plans open) | Yes | No | Required for paid plans | App functionality |
+| App info and performance → Crash logs | Yes | No | Required | Analytics (fixing crashes) |
+| App info and performance → Diagnostics | Yes | No | Required | Analytics (fixing crashes) |
 
 "Shared" means given to a third party for its own use. Data processed by service providers on your behalf (Supabase, Google's Gemini API, Vercel) is not "shared" under Google Play's definitions, but read Google's current definitions in the form before answering.
 
 Do **not** mark audio as "processed ephemerally": recordings are stored briefly (on the phone and in your storage) before and while notes are written.
 
-If you later add crash reporting or analytics, update this form.
+Crash logs and diagnostics come from Sentry (error reports). They carry an anonymous account id, never a name, email, recording or notes. If you add analytics later, update this form.
 
 ## 4. Other declarations
 
