@@ -32,7 +32,8 @@ export function useAuth() {
     setError("");
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      // Come back to the same page, such as the account deletion page.
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}` },
     });
     if (signInError) setError("Could not open Google sign-in. Try again.");
   }, [supabase]);

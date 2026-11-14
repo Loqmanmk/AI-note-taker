@@ -3,8 +3,9 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { IconBubble, Txt, type IconName } from "@/components/ui";
+import { Button, IconBubble, Txt, type IconName } from "@/components/ui";
 import { getAuthReturnAddress, useAuth } from "@/lib/auth";
+import { openPrivacyPolicy } from "@/lib/links";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
@@ -86,6 +87,7 @@ export default function SignInScreen() {
         <Txt variant="small" style={styles.privacy}>
           We use your Google name and email only to keep your classes in your account.
         </Txt>
+        <Button kind="ghost" label="Privacy policy" onPress={openPrivacyPolicy} style={styles.privacyLink} />
 
         {__DEV__ && <ReturnAddressHint />}
       </View>
@@ -148,4 +150,5 @@ const styles = StyleSheet.create({
   googleText: { fontFamily: fonts.bold, fontSize: 16 },
   error: { borderRadius: radius.md, padding: spacing.md },
   privacy: { textAlign: "center" },
+  privacyLink: { alignSelf: "center", marginTop: -spacing.md },
 });

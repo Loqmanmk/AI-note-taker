@@ -497,3 +497,31 @@ dd {
   color: var(--muted);
   font-size: 0.88rem;
 }
+
+.legal h2 {
+  margin-top: 28px;
+}
+.legal ul {
+  padding-left: 20px;
+}
+.legal li {
+  margin-bottom: 8px;
+}
+.legal a,
+.footer a {
+  color: var(--accent);
+}
+.btn.danger {
+  background: var(--high);
+  border-color: var(--high);
+  color: #fff;
+}
+.footer {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}

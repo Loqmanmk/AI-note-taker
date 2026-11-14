@@ -155,4 +155,24 @@ describe.skipIf(!url || !publishableKey || !secretKey)("Supabase accounts (integ
       .setHeader("Authorization", `Bearer ${alice.user.accessToken}`);
     expect(invalid.error).not.toBeNull();
   });
+
+  it("lets a student delete only their own account, with their classes", async () => {
+    const carol = await makeStudent("carol");
+    await new SupabaseClassRepository(config).save(carol.user, SAMPLE_PACK);
+
+    // Without signing in, the function cannot be called at all.
+    const anonymous = await createClient(url, publishableKey, { auth: noSession }).rpc("delete_my_account");
+    expect(anonymous.error).not.toBeNull();
+
+    const deleted = await carol.client.rpc("delete_my_account").setHeader("Authorization", `Bearer ${carol.user.accessToken}`);
+    expect(deleted.error).toBeNull();
+
+    const account = await admin.auth.admin.getUserById(carol.user.id);
+    expect(account.data.user).toBeNull();
+    const classes = await admin.from(CLASSES_TABLE).select("id").eq("user_id", carol.user.id);
+    expect(classes.data).toEqual([]);
+
+    // Alice is untouched.
+    expect((await admin.auth.admin.getUserById(alice.user.id)).data.user?.id).toBe(alice.user.id);
+  });
 });

@@ -7,6 +7,8 @@ import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { expoGoReturnAddress, parseAuthRedirect } from "@shared/authRedirect";
+import { RECORDINGS_BUCKET } from "@shared/recordings";
+import { sendQueue } from "./sendQueue";
 import { supabase } from "./supabase";
 
 // Closes the sign-in popup when the web version comes back from Google.
@@ -69,6 +71,8 @@ type AuthContextValue = {
   /** Resolves when signed in or cancelled; throws an Error safe to show when it fails. */
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Deletes the account, its classes and its recordings. Throws an Error safe to show. */
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -142,9 +146,28 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await supabase?.auth.signOut();
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) throw new Error("Sign in again to delete your account.");
+
+    // Storage files are not removed with the account, so delete them first.
+    const files = await supabase.storage.from(RECORDINGS_BUCKET).list(userId);
+    if (files.data?.length) {
+      await supabase.storage.from(RECORDINGS_BUCKET).remove(files.data.map((file) => `${userId}/${file.name}`));
+    }
+    const { error } = await supabase.rpc("delete_my_account");
+    if (error) throw new Error("Could not delete your account. Check your connection and try again.");
+
+    sendQueue.forgetUser(userId);
+    // The account no longer exists, so only the session on this phone is cleared.
+    await supabase.auth.signOut({ scope: "local" });
+  }, []);
+
   const value = useMemo(
-    () => ({ enabled: Boolean(supabase), isLoading, session, signInWithGoogle, signOut }),
-    [isLoading, session, signInWithGoogle, signOut],
+    () => ({ enabled: Boolean(supabase), isLoading, session, signInWithGoogle, signOut, deleteAccount }),
+    [isLoading, session, signInWithGoogle, signOut, deleteAccount],
   );
   return <AuthContext value={value}>{children}</AuthContext>;
 }

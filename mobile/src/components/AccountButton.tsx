@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { confirmDestructive } from "@/lib/confirm";
+import { confirmDestructive, showMessage } from "@/lib/confirm";
+import { openPrivacyPolicy } from "@/lib/links";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 import { Button, Txt } from "./ui";
 
@@ -10,8 +11,9 @@ import { Button, Txt } from "./ui";
 export function AccountButton() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { enabled, session, signOut } = useAuth();
+  const { enabled, session, signOut, deleteAccount } = useAuth();
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   if (!enabled || !session) return null;
 
   const metadata = session.user.user_metadata as { full_name?: unknown; name?: unknown };
@@ -27,6 +29,26 @@ export function AccountButton() {
       onConfirm: () => {
         setOpen(false);
         signOut();
+      },
+    });
+  }
+
+  function confirmDeleteAccount() {
+    confirmDestructive({
+      title: "Delete your account?",
+      message:
+        "Your account, all your classes and notes, and any recording waiting on this phone will be deleted permanently. This cannot be undone.",
+      confirmLabel: "Delete my account",
+      onConfirm: async () => {
+        setDeleting(true);
+        try {
+          await deleteAccount();
+          setOpen(false);
+        } catch (err) {
+          showMessage("Account not deleted", err instanceof Error ? err.message : "Try again.");
+        } finally {
+          setDeleting(false);
+        }
       },
     });
   }
@@ -62,6 +84,16 @@ export function AccountButton() {
             Your classes are saved in your account, so they also appear on the FocusNotes website.
           </Txt>
           <Button icon="log-out-outline" label="Sign out" onPress={confirmSignOut} />
+          <View style={styles.links}>
+            <Button kind="ghost" icon="shield-checkmark-outline" label="Privacy policy" onPress={openPrivacyPolicy} />
+            <Button
+              kind="ghost"
+              icon="trash-outline"
+              label="Delete my account"
+              loading={deleting}
+              onPress={confirmDeleteAccount}
+            />
+          </View>
         </View>
       </Modal>
     </>
@@ -79,4 +111,5 @@ const styles = StyleSheet.create({
   bigInitial: { fontFamily: fonts.extrabold, fontSize: 22 },
   grow: { flex: 1 },
   note: { marginTop: -spacing.xs },
+  links: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: -spacing.sm },
 });

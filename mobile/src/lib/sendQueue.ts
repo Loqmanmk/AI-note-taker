@@ -118,6 +118,13 @@ class SendQueue {
     this.finish(id);
   }
 
+  /** Deletes every recording of a student from this phone, for example when they delete their account. */
+  forgetUser(userId: string) {
+    for (const entry of this.all.filter((e) => e.userId === userId)) deleteFile(entry.uri);
+    this.save(this.all.filter((e) => e.userId !== userId));
+    this.updatePolling();
+  }
+
   private mine(): QueueEntry[] {
     return this.all.filter((e) => e.userId === this.userId);
   }

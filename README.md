@@ -34,6 +34,10 @@ Students sign in with Google, and their classes are saved in their account, shar
 
 [docs/deploy.md](docs/deploy.md) puts the server on Vercel and builds the Android app with Expo, so it works without your computer.
 
+## Publishing on Google Play
+
+[docs/google-play.md](docs/google-play.md) lists the links and declarations Google Play asks for, with the answers that match the app. The privacy policy is at `/privacy` and account deletion at `/delete-account` on the website.
+
 ## Mobile app
 
 The Android and iOS app lives in [`mobile/`](mobile/README.md). It records audio on the phone and uses this project as its server, through `POST /api/notes/audio`.

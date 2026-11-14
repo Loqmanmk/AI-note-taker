@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { PRIVACY_PATH } from "@/lib/legal";
 import { AppHeader } from "./AppHeader";
 
 type SignInScreenProps = { onSignIn: () => void; error: string };
@@ -34,7 +36,8 @@ export function SignInScreen({ onSignIn, error }: SignInScreenProps) {
           </p>
         )}
         <p className="muted small">
-          We use your Google name and email only to keep your classes in your account.
+          We use your Google name and email only to keep your classes in your account. See our{" "}
+          <Link href={PRIVACY_PATH}>privacy policy</Link>.
         </p>
       </section>
     </main>

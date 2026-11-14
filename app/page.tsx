@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { SignInScreen } from "@/components/SignInScreen";
 import { HistoryList } from "@/components/HistoryList";
@@ -17,6 +18,7 @@ import { SignInRequiredError, requestStudyPack } from "@/lib/client/notesApi";
 import { NOTE_LANGUAGES, TRANSCRIPT_MIN_CHARS, type NoteLanguage } from "@/lib/constants";
 import type { SavedClass } from "@/lib/schema";
 import { buildTimeline, timelineToText } from "@/lib/transcript";
+import { DELETE_ACCOUNT_PATH, PRIVACY_PATH } from "@/lib/legal";
 
 type InputMode = "record" | "paste";
 
@@ -165,6 +167,11 @@ export default function Home() {
         </p>
       )}
       <HistoryList items={history.items} onOpen={setOpenClass} onDelete={history.remove} />
+
+      <footer className="footer">
+        <Link href={PRIVACY_PATH}>Privacy policy</Link>
+        {auth.enabled && <Link href={DELETE_ACCOUNT_PATH}>Delete my account</Link>}
+      </footer>
     </main>
   );
 }
