@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import {
 } from "@expo-google-fonts/manrope";
 import { ClassSourceSync } from "@/components/ClassSourceSync";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { onNotesNotificationOpened } from "@/lib/notifications";
 import { fonts, useTheme } from "@/lib/theme";
 
 // Keep the splash screen up until fonts and the saved session are ready, so nothing jumps.
@@ -47,6 +48,12 @@ function RootNavigator() {
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
+
+  // Tapping a "notes ready" notification opens that class.
+  useEffect(() => {
+    if (!ready || !signedIn) return;
+    return onNotesNotificationOpened((id) => router.push({ pathname: "/class/[id]", params: { id } }));
+  }, [ready, signedIn]);
 
   if (!ready) return null;
 

@@ -1,6 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useKeepAwake } from "expo-keep-awake";
 import { formatClock } from "@shared/transcript";
 import type { ClassRecorder } from "@/hooks/useClassRecorder";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
@@ -8,12 +7,6 @@ import { Card, Txt } from "../ui";
 import { LevelMeter } from "./LevelMeter";
 import { LostButton } from "./LostButton";
 import { RecordButton } from "./RecordButton";
-
-/** Keeps the screen on, so the phone does not lock and cut the recording. */
-function KeepScreenOn() {
-  useKeepAwake();
-  return null;
-}
 
 function StatusPill({ phase }: { phase: ClassRecorder["phase"] }) {
   const theme = useTheme();
@@ -34,7 +27,7 @@ function StatusPill({ phase }: { phase: ClassRecorder["phase"] }) {
 
 const HINTS = {
   idle: "Put your phone near the teacher and tap to start. Check that you are allowed to record this class.",
-  recording: "Keep FocusNotes open. The screen stays on while you record.",
+  recording: "You can lock your phone or use other apps: recording continues.",
   recorded: "",
 };
 
@@ -45,7 +38,6 @@ export function RecorderPanel({ recorder, disabled }: { recorder: ClassRecorder;
 
   return (
     <Card style={styles.card}>
-      {isRecording && <KeepScreenOn />}
       <StatusPill phase={phase} />
 
       <Text

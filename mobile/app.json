@@ -35,7 +35,9 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "FocusNotes records your class so it can write your notes."
+          "microphonePermission": "FocusNotes records your class so it can write your notes.",
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
         }
       ],
       [
@@ -50,7 +52,8 @@
             "backgroundColor": "#0F0E17"
           }
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "extra": {
       "router": {

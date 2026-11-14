@@ -1,14 +1,20 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatRelativeDay, pickIndex } from "@shared/format";
 import type { SavedClass } from "@shared/schema";
+import { formatClock } from "@shared/transcript";
 import type { ClassListStatus } from "@/lib/classStore";
 import { confirmDestructive, showMessage } from "@/lib/confirm";
+import type { QueueEntry } from "@/lib/sendQueue";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 import { Button, IconBubble, SectionHeader, Txt } from "./ui";
 
 type HistoryListProps = {
   items: SavedClass[];
+  /** Recordings waiting for their notes. */
+  queued: QueueEntry[];
+  onRetrySend: (id: string) => void;
+  onDiscardSend: (id: string) => void;
   status: ClassListStatus;
   onRetry: () => void;
   onOpen: (id: string) => void;
@@ -17,10 +23,35 @@ type HistoryListProps = {
   onTryExample: () => void;
 };
 
-export function HistoryList({ items, status, onRetry, onOpen, onDelete, onTryExample }: HistoryListProps) {
+export function HistoryList(props: HistoryListProps) {
+  const { queued, onRetrySend, onDiscardSend } = props;
+  return (
+    <>
+      {queued.length > 0 && (
+        <View style={styles.section}>
+          <SectionHeader title="In progress" detail={`${queued.length}`} />
+          {queued.map((entry) => (
+            <QueuedRow key={entry.id} entry={entry} onRetry={onRetrySend} onDiscard={onDiscardSend} />
+          ))}
+        </View>
+      )}
+      <SavedClasses {...props} hideEmpty={queued.length > 0} />
+    </>
+  );
+}
+
+function SavedClasses({
+  items,
+  status,
+  onRetry,
+  onOpen,
+  onDelete,
+  onTryExample,
+  hideEmpty,
+}: HistoryListProps & { hideEmpty: boolean }) {
   if (status === "loading" && items.length === 0) return <LoadingHistory />;
   if (status === "error" && items.length === 0) return <HistoryError onRetry={onRetry} />;
-  if (items.length === 0) return <EmptyHistory onTryExample={onTryExample} />;
+  if (items.length === 0) return hideEmpty ? null : <EmptyHistory onTryExample={onTryExample} />;
 
   return (
     <View style={styles.section}>
@@ -80,6 +111,74 @@ function ClassRow({ item, onOpen, onDelete }: { item: SavedClass } & Pick<Histor
       </View>
       <Ionicons name="chevron-forward" size={20} color={theme.faint} />
     </Pressable>
+  );
+}
+
+/** A recording on its way to becoming notes, or one that could not be turned into notes. */
+function QueuedRow({
+  entry,
+  onRetry,
+  onDiscard,
+}: {
+  entry: QueueEntry;
+  onRetry: (id: string) => void;
+  onDiscard: (id: string) => void;
+}) {
+  const theme = useTheme();
+  const failed = entry.state === "failed";
+  const when = `${formatRelativeDay(entry.createdAt)} · ${formatClock(entry.durationSeconds)} recorded`;
+  const headline = { sending: "Sending your recording…", processing: "Writing your notes…", failed: "Notes not written" }[
+    entry.state
+  ];
+  const detail = failed
+    ? (entry.error ?? "Something went wrong.")
+    : entry.state === "processing"
+      ? "You can close the app. We will tell you when they are ready."
+      : "Keep a connection for a moment.";
+
+  function confirmDiscard() {
+    confirmDestructive({
+      title: "Delete this recording?",
+      message: "The audio will be deleted from this phone and its notes will not be written.",
+      confirmLabel: "Delete",
+      onConfirm: () => onDiscard(entry.id),
+    });
+  }
+
+  return (
+    <View
+      style={[
+        styles.row,
+        styles.queued,
+        { backgroundColor: failed ? theme.highSoft : theme.card, borderColor: failed ? theme.high : theme.line },
+      ]}
+      accessibilityLiveRegion="polite"
+    >
+      <View style={styles.queuedTop}>
+        <View style={[styles.avatar, { backgroundColor: failed ? theme.card : theme.primarySoft }]}>
+          {failed ? (
+            <Ionicons name="alert-circle" size={24} color={theme.high} />
+          ) : (
+            <ActivityIndicator color={theme.primary} />
+          )}
+        </View>
+        <View style={styles.grow}>
+          <Txt variant="bodyStrong" color={failed ? theme.high : undefined}>
+            {headline}
+          </Txt>
+          <Txt variant="small">{when}</Txt>
+        </View>
+      </View>
+      <Txt variant="small" style={styles.queuedDetail}>
+        {detail}
+      </Txt>
+      {failed && (
+        <View style={styles.queuedActions}>
+          <Button kind="primary" icon="refresh" label="Retry" onPress={() => onRetry(entry.id)} style={styles.grow} />
+          <Button icon="trash-outline" label="Delete" onPress={confirmDiscard} />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -158,6 +257,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   center: { textAlign: "center" },
+  queued: { flexDirection: "column", alignItems: "stretch" },
+  queuedTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  queuedDetail: { marginTop: spacing.sm },
+  queuedActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   skeletonLines: { gap: spacing.sm },
   skeleton: { height: 12, borderRadius: 6 },
 });

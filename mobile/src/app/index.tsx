@@ -9,17 +9,20 @@ import type { NotesResponse } from "@shared/schema";
 import { AccountButton } from "@/components/AccountButton";
 import { HistoryList } from "@/components/HistoryList";
 import { LanguagePicker } from "@/components/LanguagePicker";
-import { ProcessingCard, RECORDING_STEPS, TRANSCRIPT_STEPS, type ProcessingStep } from "@/components/ProcessingCard";
+import { ProcessingCard, TRANSCRIPT_STEPS, type ProcessingStep } from "@/components/ProcessingCard";
 import { RecorderPanel } from "@/components/record/RecorderPanel";
 import { ServerStatusBanner } from "@/components/ServerStatusBanner";
-import { Button, IconBubble, Txt } from "@/components/ui";
+import { Button, IconBubble, IconButton, Txt } from "@/components/ui";
 import { useClassHistory } from "@/hooks/useClassHistory";
 import { useClassRecorder } from "@/hooks/useClassRecorder";
 import { useNoteLanguage } from "@/hooks/useNoteLanguage";
+import { useSendQueue } from "@/hooks/useSendQueue";
 import { useServerStatus } from "@/hooks/useServerStatus";
-import { requestStudyPackFromRecording, requestStudyPackFromTranscript } from "@/lib/api";
+import { requestStudyPackFromTranscript } from "@/lib/api";
 import { classStore } from "@/lib/classStore";
 import { confirmDestructive } from "@/lib/confirm";
+import { ensureNotificationPermission } from "@/lib/notifications";
+import { sendQueue } from "@/lib/sendQueue";
 import { radius, spacing, useTheme } from "@/lib/theme";
 
 function newClassId(): string {
@@ -39,11 +42,13 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const recorder = useClassRecorder();
   const history = useClassHistory();
+  const queue = useSendQueue();
   const server = useServerStatus();
   const [language, setLanguage] = useNoteLanguage();
 
   const [processing, setProcessing] = useState<ProcessingStep[] | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   /** Runs a request for notes, saves the result and opens it. */
   async function createNotes(steps: ProcessingStep[], request: () => Promise<NotesResponse>): Promise<boolean> {
@@ -65,12 +70,23 @@ export default function HomeScreen() {
     }
   }
 
+  /**
+   * Hands the recording to the send queue, which keeps it on the phone until its notes are saved.
+   * The student is free at once: the class shows in the list while its notes are written.
+   */
   async function createFromRecording() {
     const recording = recorder.recording;
     if (!recording) return;
-    // The recording is only discarded once the notes exist, so a failed upload can be retried.
-    const created = await createNotes(RECORDING_STEPS, () => requestStudyPackFromRecording(recording, language));
-    if (created) recorder.discard();
+    setError("");
+    await ensureNotificationPermission();
+    await sendQueue.add({
+      uri: recording.uri,
+      lostTimes: recording.lostTimes,
+      durationSeconds: recorder.seconds,
+      language,
+    });
+    recorder.release();
+    setNotice("Your notes are being written. You can close the app: we will tell you when they are ready.");
   }
 
   function tryExample() {
@@ -119,6 +135,16 @@ export default function HomeScreen() {
 
       <ServerStatusBanner status={server.status} onRetry={server.retry} />
 
+      {notice !== "" && recorder.phase === "idle" && (
+        <View style={[styles.notice, { backgroundColor: theme.goodSoft }]} accessibilityRole="alert">
+          <IconBubble name="checkmark-circle" color={theme.good} background={theme.card} size={32} />
+          <Txt variant="small" color={theme.good} style={styles.grow}>
+            {notice}
+          </Txt>
+          <IconButton icon="close" label="Hide this message" onPress={() => setNotice("")} color={theme.good} />
+        </View>
+      )}
+
       <RecorderPanel recorder={recorder} disabled={busy} />
 
       {recorder.phase === "recorded" && !busy && (
@@ -143,6 +169,9 @@ export default function HomeScreen() {
       {recorder.phase !== "recording" && !busy && (
         <HistoryList
           items={history.items}
+          queued={queue.entries}
+          onRetrySend={queue.retry}
+          onDiscardSend={queue.discard}
           status={history.status}
           onRetry={history.reload}
           onOpen={(id) => router.push({ pathname: "/class/[id]", params: { id } })}
@@ -168,6 +197,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.lg,
+  },
+  notice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
   grow: { flex: 1 },
 });

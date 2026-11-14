@@ -1,7 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { CLASSES_TABLE, CLASS_COLUMNS, CLASS_LIST_LIMIT, rowsToSavedClasses } from "@shared/classes";
+import {
+  CLASSES_TABLE,
+  CLASS_COLUMNS,
+  CLASS_LIST_LIMIT,
+  rowsToPendingClasses,
+  rowsToSavedClasses,
+  type PendingClass,
+} from "@shared/classes";
 import { HISTORY_MAX_ITEMS } from "@shared/constants";
 import { SavedClassSchema, type SavedClass } from "@shared/schema";
 
@@ -60,6 +67,13 @@ export class AccountClassSource implements ClassSource {
   }
 
   async added(): Promise<void> {}
+
+  /** The current state of classes whose notes are being written. */
+  async check(ids: string[]): Promise<{ ready: SavedClass[]; pending: PendingClass[] }> {
+    const { data, error } = await this.supabase.from(CLASSES_TABLE).select(CLASS_COLUMNS).in("id", ids);
+    if (error) throw new Error("Could not check your classes.");
+    return { ready: rowsToSavedClasses(data), pending: rowsToPendingClasses(data) };
+  }
 
   async remove(id: string): Promise<void> {
     const { error } = await this.supabase.from(CLASSES_TABLE).delete().eq("id", id);

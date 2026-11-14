@@ -4,7 +4,13 @@ import { File as LocalFile } from "expo-file-system";
 import { Platform } from "react-native";
 import { AUDIO_MAX_BYTES, type NoteLanguage } from "@shared/constants";
 import { RECORDINGS_BUCKET, recordingPath } from "@shared/recordings";
-import { NotesResponseSchema, type NotesResponse } from "@shared/schema";
+import { z } from "zod";
+import {
+  NotesJobResponseSchema,
+  NotesResponseSchema,
+  type NotesJobResponse,
+  type NotesResponse,
+} from "@shared/schema";
 import { getAccessToken, supabase } from "./supabase";
 
 const SERVER_PORT = 3000;
@@ -72,6 +78,11 @@ function errorMessage(data: unknown): string | undefined {
 
 /** Throws an Error whose message is safe to show the student. */
 async function postForStudyPack(path: string, init: RequestInit): Promise<NotesResponse> {
+  return postAndParse(path, init, NotesResponseSchema);
+}
+
+/** Sends a request and checks the answer has the expected shape. Throws an Error safe to show. */
+async function postAndParse<T>(path: string, init: RequestInit, schema: z.ZodType<T>): Promise<T> {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error("The server address is not set. Add EXPO_PUBLIC_API_URL to mobile/.env.");
 
@@ -104,7 +115,7 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
     throw new Error(errorMessage(answer.data) ?? "Something went wrong. Try again.");
   }
 
-  const parsed = NotesResponseSchema.safeParse(answer.data);
+  const parsed = schema.safeParse(answer.data);
   if (!parsed.success) throw new Error("The server sent an answer the app could not read.");
   return parsed.data;
 }
@@ -160,18 +171,28 @@ async function uploadRecording(uri: string): Promise<string> {
   return path;
 }
 
-export async function requestStudyPackFromRecording(
-  recording: Recording,
-  language: NoteLanguage,
-): Promise<NotesResponse> {
-  // With accounts, the recording goes to storage and the server receives only where it is.
+/** What the server did with a recording: notes written already, or being written in the background. */
+export type RecordingOutcome = { kind: "done"; response: NotesResponse } | { kind: "processing"; job: NotesJobResponse };
+
+const RecordingAnswerSchema = z.union([NotesJobResponseSchema, NotesResponseSchema]);
+
+/**
+ * Sends a recording to be turned into notes. Throws an Error safe to show the student.
+ * With accounts, the recording goes to storage and the server writes the notes in the background.
+ */
+export async function sendRecording(recording: Recording, language: NoteLanguage): Promise<RecordingOutcome> {
   if (supabase) {
     const path = await uploadRecording(recording.uri);
     try {
-      return await postForStudyPack("/api/notes/audio", {
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recordingPath: path, language, lostTimes: recording.lostTimes }),
-      });
+      const answer = await postAndParse(
+        "/api/notes/audio",
+        {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recordingPath: path, language, lostTimes: recording.lostTimes, background: true }),
+        },
+        RecordingAnswerSchema,
+      );
+      return "status" in answer ? { kind: "processing", job: answer } : { kind: "done", response: answer };
     } catch (err) {
       // The server deletes the recording once it has used it; if the request failed before that,
       // do not leave the class audio in storage. The phone keeps its own copy for a retry.
@@ -185,7 +206,7 @@ export async function requestStudyPackFromRecording(
   await appendRecording(form, recording.uri);
   form.append("language", language);
   form.append("lostTimes", JSON.stringify(recording.lostTimes));
-  return postForStudyPack("/api/notes/audio", { body: form });
+  return { kind: "done", response: await postForStudyPack("/api/notes/audio", { body: form }) };
 }
 
 export function requestStudyPackFromTranscript(transcript: string, language: NoteLanguage): Promise<NotesResponse> {

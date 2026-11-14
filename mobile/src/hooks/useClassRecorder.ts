@@ -9,7 +9,9 @@ import {
   useAudioRecorderState,
   type RecordingOptions,
 } from "expo-audio";
+import { File as LocalFile } from "expo-file-system";
 import * as Haptics from "expo-haptics";
+import { Platform } from "react-native";
 import type { Recording } from "@/lib/api";
 
 /**
@@ -23,6 +25,9 @@ const CLASS_RECORDING: RecordingOptions = {
   numberOfChannels: 1,
   bitRate: 32000,
   isMeteringEnabled: true,
+  // The document folder is never emptied by the system, unlike the cache: a class waiting to be
+  // sent must survive until its notes are saved.
+  directory: "document",
   android: { outputFormat: "mpeg4", audioEncoder: "aac" },
   ios: { ...RecordingPresets.HIGH_QUALITY.ios, outputFormat: IOSOutputFormat.MPEG4AAC, audioQuality: AudioQuality.MEDIUM },
 };
@@ -74,8 +79,11 @@ export function useClassRecorder() {
         setError("FocusNotes needs the microphone to record your class. Allow it in your phone's settings.");
         return;
       }
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
+      // Keep recording when the phone locks or the student switches apps (needs an app build,
+      // not Expo Go). Android shows a "Recording audio" notification while it records.
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, allowsBackgroundRecording: true });
+      // A new file for each class, so a recording waiting to be sent is never overwritten.
+      await recorder.prepareToRecordAsync({ fileName: `class-${Date.now()}` });
       recorder.record();
       tap(Haptics.ImpactFeedbackStyle.Medium);
       setLostTimes([]);
@@ -92,7 +100,7 @@ export function useClassRecorder() {
     tap(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false });
+      await setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false });
     } catch {
       // Stopping twice or after an interruption still leaves a usable file.
     }
@@ -114,7 +122,8 @@ export function useClassRecorder() {
     return seconds;
   }, [recorder]);
 
-  const discard = useCallback(() => {
+  /** Forgets the recording without deleting it, once it has been handed over to be sent. */
+  const release = useCallback(() => {
     setRecording(null);
     setLostTimes([]);
     setLevels([]);
@@ -122,6 +131,24 @@ export function useClassRecorder() {
     setError("");
     setPhase("idle");
   }, []);
+
+  /** Throws the recording away, file included. */
+  const discard = useCallback(() => {
+    if (recording && Platform.OS !== "web") {
+      try {
+        const file = new LocalFile(recording.uri);
+        if (file.exists) file.delete();
+      } catch {
+        // Only costs space.
+      }
+    }
+    setRecording(null);
+    setLostTimes([]);
+    setLevels([]);
+    setFinalSeconds(0);
+    setError("");
+    setPhase("idle");
+  }, [recording]);
 
   return {
     phase,
@@ -134,6 +161,7 @@ export function useClassRecorder() {
     stop,
     markLost,
     discard,
+    release,
   };
 }
 
