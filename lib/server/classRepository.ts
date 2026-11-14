@@ -17,8 +17,8 @@ export interface ClassRepository {
 }
 
 /** What the table stores for a finished class. Titles are capped like the table's checks. */
-function readyColumns(pack: StudyPack) {
-  return { status: "ready", error: null, title: pack.title.slice(0, 500), subject: pack.subject.slice(0, 200), pack };
+function packColumns(pack: StudyPack) {
+  return { title: pack.title.slice(0, 500), subject: pack.subject.slice(0, 200), pack };
 }
 
 export class SupabaseClassRepository implements ClassRepository {
@@ -35,7 +35,8 @@ export class SupabaseClassRepository implements ClassRepository {
   async save(user: AuthUser, pack: StudyPack): Promise<string> {
     const { data, error } = await this.clientFor(user)
       .from(CLASSES_TABLE)
-      .insert({ user_id: user.id, ...readyColumns(pack) })
+      // The status column defaults to 'ready', so this also works on a database without background jobs.
+      .insert({ user_id: user.id, ...packColumns(pack) })
       .select("id")
       .single();
     if (error || !data) throw new Error(`Could not save the class: ${error?.message ?? "no row returned"}`);
@@ -53,7 +54,7 @@ export class SupabaseClassRepository implements ClassRepository {
   }
 
   async complete(user: AuthUser, classId: string, pack: StudyPack): Promise<void> {
-    await this.update(user, classId, readyColumns(pack));
+    await this.update(user, classId, { ...packColumns(pack), status: "ready", error: null });
   }
 
   async fail(user: AuthUser, classId: string, message: string): Promise<void> {

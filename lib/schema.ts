@@ -67,6 +67,11 @@ export type AudioNotesFields = z.infer<typeof AudioNotesFieldsSchema>;
 /** Body of POST /api/notes/audio when the recording was first uploaded to storage. */
 export const StoredRecordingRequestSchema = AudioNotesFieldsSchema.extend({
   recordingPath: z.string().min(1).max(300),
+  /**
+   * Write the notes in the background and answer at once. Older app versions leave it out and
+   * wait for the notes in the answer, so they keep working.
+   */
+  background: z.boolean().default(false),
 });
 
 export const NotesResponseSchema = z.object({

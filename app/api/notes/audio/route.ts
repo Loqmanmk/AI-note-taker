@@ -22,8 +22,9 @@ const TOO_LONG = "The recording is too long. Split the class into two parts.";
  * Creates a study pack from a recording of a class, sent in one of two ways:
  * - JSON { recordingPath, language, lostTimes }: the phone already uploaded the recording to
  *   storage. Used with accounts, because hosting platforms cap request size (Vercel: 4.5 MB).
- *   Answers 202 { classId, status: "processing" } at once and writes the notes in the background:
- *   the class turns "ready" or "failed" in the student's account.
+ *   With "background": true, answers 202 { classId, status: "processing" } at once and writes the
+ *   notes in the background: the class turns "ready" or "failed" in the student's account.
+ *   Without it (older app versions), answers with the notes, as before.
  * - Multipart form data with "audio", "language" and "lostTimes": the recording itself. Used
  *   when accounts are off, typically on a local computer.
  */
@@ -65,7 +66,7 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
   const parsed = StoredRecordingRequestSchema.safeParse(json);
   if (!parsed.success) return errorResponse(400, parsed.error.issues[0]?.message ?? "Invalid request.");
 
-  const { recordingPath, ...fields } = parsed.data;
+  const { recordingPath, background, ...fields } = parsed.data;
   if (!isOwnRecordingPath(user.id, recordingPath)) return errorResponse(400, "Invalid recording.");
 
   // A recording is only kept until its notes are written, whatever the outcome.
@@ -86,6 +87,15 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
   if (refusal || !audio || !mimeType) {
     await removeRecording();
     return refusal ?? errorResponse(415, "This audio format is not supported.");
+  }
+
+  if (!background) {
+    // Older app versions wait for the notes in the answer.
+    try {
+      return await generationResponse(user, () => generator.generateFromAudio({ ...fields, audio, mimeType }));
+    } finally {
+      await removeRecording();
+    }
   }
 
   let classId: string;
