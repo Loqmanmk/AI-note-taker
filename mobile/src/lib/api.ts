@@ -12,6 +12,7 @@ import {
   type NotesResponse,
 } from "@shared/schema";
 import { getAccessToken, supabase } from "./supabase";
+import { languageStore, t } from "@/i18n";
 
 const SERVER_PORT = 3000;
 const HEALTH_TIMEOUT_MS = 5000;
@@ -55,13 +56,15 @@ async function send(baseUrl: string, path: string, init: RequestInit, token: str
   const headers = {
     ...(init.headers as Record<string, string> | undefined),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    // The server answers errors in the app's language.
+    "Accept-Language": languageStore.getSnapshot(),
   };
   let res: Response;
   try {
     res = await fetch(`${baseUrl}${path}`, { method: "POST", ...init, headers });
   } catch (err) {
     console.warn(`[api] ${path} failed:`, err);
-    throw new Error(`Could not reach the server at ${baseUrl}. Check your internet connection and try again.`);
+    throw new ConnectionError(t().api.unreachable(baseUrl));
   }
   const text = await res.text().catch(() => "");
   try {
@@ -81,6 +84,11 @@ async function postForStudyPack(path: string, init: RequestInit): Promise<NotesR
   return postAndParse(path, init, NotesResponseSchema);
 }
 
+/** The server could not be reached, or the upload broke off: worth retrying on its own. */
+export class ConnectionError extends Error {
+  override name = "ConnectionError";
+}
+
 /** The student's plan does not allow this class. The message says why and suggests upgrading. */
 export class PlanLimitError extends Error {
   override name = "PlanLimitError";
@@ -93,7 +101,7 @@ function isPlanLimit(answer: ServerAnswer): boolean {
 /** Sends a request and checks the answer has the expected shape. Throws an Error safe to show. */
 async function postAndParse<T>(path: string, init: RequestInit, schema: z.ZodType<T>): Promise<T> {
   const baseUrl = getApiBaseUrl();
-  if (!baseUrl) throw new Error("The server address is not set. Add EXPO_PUBLIC_API_URL to mobile/.env.");
+  if (!baseUrl) throw new Error(t().api.noAddress);
 
   // The access token proves to the server which student is asking.
   let answer = await send(baseUrl, path, init, await getAccessToken());
@@ -104,7 +112,7 @@ async function postAndParse<T>(path: string, init: RequestInit, schema: z.ZodTyp
     if (refreshed.error || !refreshed.data.session) {
       // The session really is over: signing out brings the student back to the sign-in screen.
       await supabase.auth.signOut();
-      throw new Error("Your session has expired. Sign in again.");
+      throw new Error(t().api.sessionExpired);
     }
     answer = await send(baseUrl, path, init, refreshed.data.session.access_token);
   }
@@ -114,20 +122,20 @@ async function postAndParse<T>(path: string, init: RequestInit, schema: z.ZodTyp
     console.warn(`[api] ${baseUrl}${path} refused a valid session (${answer.isJson ? "server" : "not the notes server"}):`, answer.data);
     throw new Error(
       answer.isJson
-        ? "The server did not accept your sign-in. It may be set up with a different Supabase project than the app."
-        : `The server at ${baseUrl} refused the request before reaching FocusNotes. If it is on Vercel, turn off Deployment Protection or use the project's main address.`,
+        ? t().api.signInRefused
+        : t().api.blocked(baseUrl),
     );
   }
 
-  if (isPlanLimit(answer)) throw new PlanLimitError(errorMessage(answer.data) ?? "Your plan's limit is reached.");
+  if (isPlanLimit(answer)) throw new PlanLimitError(errorMessage(answer.data) ?? t().api.planLimit);
 
   if (answer.status < 200 || answer.status >= 300) {
     console.warn(`[api] ${path} answered ${answer.status}:`, answer.data);
-    throw new Error(errorMessage(answer.data) ?? "Something went wrong. Try again.");
+    throw new Error(errorMessage(answer.data) ?? t().common.somethingWrong);
   }
 
   const parsed = schema.safeParse(answer.data);
-  if (!parsed.success) throw new Error("The server sent an answer the app could not read.");
+  if (!parsed.success) throw new Error(t().api.unreadable);
   return parsed.data;
 }
 
@@ -142,18 +150,18 @@ async function appendRecording(form: FormData, uri: string) {
   // Expo's fetch reads the file from its bytes; it does not accept React Native's
   // { uri, name, type } objects. The server also recognises the type from the .m4a name.
   const file = new LocalFile(uri);
-  if (!file.exists) throw new Error("The recording could not be found on the phone. Record the class again.");
+  if (!file.exists) throw new Error(t().api.recordingMissing);
   form.append("audio", file);
 }
 
-const TOO_LONG = "The recording is too long. Split the class into two parts.";
+const tooLong = () => t().api.tooLong;
 
 /** The recording's bytes, wherever the platform keeps it. */
 async function readRecording(uri: string): Promise<Uint8Array> {
   if (Platform.OS === "web") return new Uint8Array(await (await fetch(uri)).arrayBuffer());
   const file = new LocalFile(uri);
-  if (!file.exists) throw new Error("The recording could not be found on the phone. Record the class again.");
-  if (file.size > AUDIO_MAX_BYTES) throw new Error(TOO_LONG);
+  if (!file.exists) throw new Error(t().api.recordingMissing);
+  if (file.size > AUDIO_MAX_BYTES) throw new Error(tooLong());
   return file.bytes();
 }
 
@@ -163,10 +171,10 @@ async function readRecording(uri: string): Promise<Uint8Array> {
  * (Vercel: 4.5 MB) while an hour of class is about 15 MB. The server deletes it once used.
  */
 async function uploadRecording(uri: string): Promise<string> {
-  if (!supabase) throw new Error("Accounts are not set up.");
+  if (!supabase) throw new Error(t().api.accountsOff);
   const { data } = await supabase.auth.getSession();
   const userId = data.session?.user.id;
-  if (!userId) throw new Error("Your session has expired. Sign in again.");
+  if (!userId) throw new Error(t().api.sessionExpired);
 
   const bytes = await readRecording(uri);
   const extension = Platform.OS === "web" ? "webm" : "m4a";
@@ -177,7 +185,7 @@ async function uploadRecording(uri: string): Promise<string> {
   });
   if (error) {
     console.warn("[api] recording upload failed:", error.message);
-    throw new Error("Could not upload the recording. Check your connection and try again.");
+    throw new ConnectionError(t().api.uploadFailed);
   }
   return path;
 }

@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import { t } from "@/i18n";
 
 const CHANNEL_ID = "notes-ready";
 const supported = Platform.OS !== "web";
@@ -25,7 +26,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   try {
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: "Notes ready",
+        name: t().notifications.channel,
         importance: Notifications.AndroidImportance.HIGH,
       });
     }
@@ -43,7 +44,7 @@ export async function notifyNotesReady(classId: string, title: string): Promise<
   if (!supported) return;
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title: "Your notes are ready", body: title, data: { classId } },
+      content: { title: t().notifications.readyTitle, body: title, data: { classId } },
       trigger: Platform.OS === "android" ? { channelId: CHANNEL_ID } : null,
     });
   } catch {
@@ -56,7 +57,7 @@ export async function notifyNotesFailed(message: string): Promise<void> {
   if (!supported) return;
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title: "Your notes could not be written", body: `${message} Open FocusNotes to try again.` },
+      content: { title: t().notifications.failedTitle, body: t().notifications.failedBody(message) },
       trigger: Platform.OS === "android" ? { channelId: CHANNEL_ID } : null,
     });
   } catch {

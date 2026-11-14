@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS, checkAllowance, effectivePlan, formatMinutes, nextMonthStart, planPrice, startOfMonth, type PlanStatus } from "../lib/plans";
+import { PLANS, checkAllowance, effectivePlan, nextMonthStart, planPrice, startOfMonth, type PlanStatus } from "../lib/plans";
 
 const status = (plan: PlanStatus["plan"], classesUsed: number): PlanStatus => ({
   plan,
@@ -48,10 +48,5 @@ describe("helpers", () => {
     expect(planPrice(PLANS.premium, "monthly")).toEqual({ mad: 49, usd: 4.99 });
     expect(planPrice(PLANS.premium, "yearly")).toEqual({ mad: 490, usd: 49.9 });
     expect(planPrice(PLANS.pro, "yearly")).toEqual({ mad: 890, usd: 89.9 });
-  });
-  it("formats durations", () => {
-    expect(formatMinutes(30)).toBe("30 minutes");
-    expect(formatMinutes(60)).toBe("1 hour");
-    expect(formatMinutes(120)).toBe("2 hours");
   });
 });

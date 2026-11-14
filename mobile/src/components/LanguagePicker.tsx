@@ -3,16 +3,19 @@ import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NOTE_LANGUAGES, type NoteLanguage } from "@shared/constants";
+import { useT } from "@/i18n";
 import { radius, spacing, useTheme } from "@/lib/theme";
 import { Txt } from "./ui";
 
-const OPTIONS = Object.entries(NOTE_LANGUAGES) as [NoteLanguage, string][];
+const CODES = Object.keys(NOTE_LANGUAGES) as NoteLanguage[];
 
 type LanguagePickerProps = { value: NoteLanguage; onChange: (language: NoteLanguage) => void };
 
 /** A compact row showing the notes language, opening a bottom sheet to change it. */
 export function LanguagePicker({ value, onChange }: LanguagePickerProps) {
   const theme = useTheme();
+  const m = useT();
+  const names = m.noteLanguage.options;
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
@@ -20,7 +23,7 @@ export function LanguagePicker({ value, onChange }: LanguagePickerProps) {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Notes language: ${NOTE_LANGUAGES[value]}. Change`}
+        accessibilityLabel={m.noteLanguage.change(names[value])}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.row,
@@ -29,20 +32,21 @@ export function LanguagePicker({ value, onChange }: LanguagePickerProps) {
       >
         <Ionicons name="language" size={20} color={theme.primary} />
         <View style={styles.grow}>
-          <Txt variant="small">Notes language</Txt>
-          <Txt variant="bodyStrong">{NOTE_LANGUAGES[value]}</Txt>
+          <Txt variant="small">{m.noteLanguage.label}</Txt>
+          <Txt variant="bodyStrong">{names[value]}</Txt>
         </View>
         <Ionicons name="chevron-down" size={20} color={theme.muted} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel={m.common.close} />
         <View style={[styles.sheet, { backgroundColor: theme.card, paddingBottom: insets.bottom + spacing.lg }]}>
           <View style={[styles.handle, { backgroundColor: theme.line }]} />
           <Txt variant="heading" style={styles.sheetTitle}>
-            Write my notes in
+            {m.noteLanguage.sheetTitle}
           </Txt>
-          {OPTIONS.map(([code, label]) => {
+          {CODES.map((code) => {
+            const label = names[code];
             const selected = code === value;
             return (
               <Pressable

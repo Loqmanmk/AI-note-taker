@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PLANS, PLAN_ORDER, planPrice, type Billing, type Plan, type PlanId } from "@shared/plans";
+import { useT } from "@/i18n";
+import { planFeatures, planName } from "@/i18n/format";
 import { PlanUsage } from "@/components/PlanUsage";
 import { Badge, Button, Card, Txt } from "@/components/ui";
 import { usePlan } from "@/hooks/usePlan";
@@ -14,24 +17,22 @@ const RANK: Record<PlanId, number> = { free: 0, premium: 1, pro: 2 };
 /** What each plan includes and costs, with the student's current plan and usage. */
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
+  const m = useT();
   const { status } = usePlan();
   const [billing, setBilling] = useState<Billing>("monthly");
   const current = status?.plan ?? "free";
 
   function choose(plan: Plan) {
     // Payments go through Google Play once the app is published there.
-    showMessage(
-      `${plan.name} is coming soon`,
-      "Payments will open when FocusNotes is on Google Play. Until then, enjoy the Free plan.",
-    );
+    showMessage(m.plans.comingSoonTitle(planName(plan.id, m)), m.plans.comingSoonText);
   }
 
   return (
     <ScrollView contentContainerStyle={[styles.screen, { paddingBottom: insets.bottom + spacing.xxl }]}>
-      <Txt variant="display">Choose your plan</Txt>
+      <Stack.Screen options={{ title: m.plans.screenTitle }} />
+      <Txt variant="display">{m.plans.title}</Txt>
       <Txt variant="small" style={styles.lead}>
-        Every plan writes the same notes: summary, focus topics, quiz and re-explanations. Paid plans give you more and
-        longer classes.
+        {m.plans.lead}
       </Txt>
 
       {status && <PlanUsage status={status} />}
@@ -51,8 +52,7 @@ export default function PlansScreen() {
       ))}
 
       <Txt variant="small" style={styles.footnote}>
-        Prices in dirhams, with dollars for reference. Google Play shows the final price in your currency before you
-        pay. Cancel anytime from Google Play. Classes reset on the 1st of each month.
+        {m.plans.footnote}
       </Txt>
     </ScrollView>
   );
@@ -60,9 +60,10 @@ export default function PlansScreen() {
 
 function BillingSwitch({ value, onChange }: { value: Billing; onChange: (value: Billing) => void }) {
   const theme = useTheme();
+  const m = useT();
   const options: { id: Billing; label: string }[] = [
-    { id: "monthly", label: "Monthly" },
-    { id: "yearly", label: "Yearly · 2 months free" },
+    { id: "monthly", label: m.plans.monthly },
+    { id: "yearly", label: m.plans.yearly },
   ];
   return (
     <View style={[styles.switch, { backgroundColor: theme.cardAlt }]} accessibilityRole="tablist">
@@ -95,43 +96,45 @@ type PlanCardProps = {
 
 function PlanCard({ plan, billing, isCurrent, isUpgrade, highlighted, onChoose }: PlanCardProps) {
   const theme = useTheme();
+  const m = useT();
+  const name = planName(plan.id, m);
   const price = planPrice(plan, billing);
-  const period = billing === "yearly" ? "year" : "month";
+  const period = billing === "yearly" ? m.plans.perYear : m.plans.perMonth;
 
   return (
     <Card style={[styles.card, highlighted && { borderColor: theme.primary, borderWidth: 2 }]}>
       <View style={styles.cardTop}>
         <Txt variant="title" style={styles.grow}>
-          {plan.name}
+          {name}
         </Txt>
         {isCurrent ? (
-          <Badge label="Your plan" icon="checkmark-circle" color={theme.good} background={theme.goodSoft} />
+          <Badge label={m.plans.yourPlan} icon="checkmark-circle" color={theme.good} background={theme.goodSoft} />
         ) : highlighted ? (
-          <Badge label="Most popular" icon="star" color={theme.primary} background={theme.primarySoft} />
+          <Badge label={m.plans.popular} icon="star" color={theme.primary} background={theme.primarySoft} />
         ) : null}
       </View>
 
       {price ? (
         <View>
           <Text style={[styles.price, { color: theme.ink }]}>
-            {price.mad} MAD<Text style={[styles.period, { color: theme.muted }]}> / {period}</Text>
+            {price.mad} {m.plans.currency}<Text style={[styles.period, { color: theme.muted }]}> / {period}</Text>
           </Text>
           <Txt variant="small">
             ≈ ${price.usd.toFixed(2)}
-            {billing === "yearly" && plan.price ? ` · ${Math.round(price.mad / 12)} MAD a month` : ""}
+            {billing === "yearly" && plan.price ? ` · ${m.plans.aMonth(Math.round(price.mad / 12))}` : ""}
           </Txt>
         </View>
       ) : (
         <View>
           <Text style={[styles.price, { color: theme.ink }]}>
-            0 MAD<Text style={[styles.period, { color: theme.muted }]}> / {period}</Text>
+            0 {m.plans.currency}<Text style={[styles.period, { color: theme.muted }]}> / {period}</Text>
           </Text>
-          <Txt variant="small">No card needed</Txt>
+          <Txt variant="small">{m.plans.noCard}</Txt>
         </View>
       )}
 
       <View style={styles.features}>
-        {plan.features.map((feature) => (
+        {planFeatures(plan, m).map((feature) => (
           <View key={feature} style={styles.feature}>
             <Ionicons name="checkmark-circle" size={18} color={theme.good} />
             <Txt variant="small" tone="ink" style={styles.grow}>
@@ -145,7 +148,7 @@ function PlanCard({ plan, billing, isCurrent, isUpgrade, highlighted, onChoose }
         <Button
           kind={highlighted ? "primary" : "secondary"}
           icon="diamond-outline"
-          label={`Get ${plan.name}`}
+          label={m.plans.get(name)}
           onPress={() => onChoose(plan)}
         />
       )}

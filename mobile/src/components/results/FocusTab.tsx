@@ -3,15 +3,17 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { StudyPack } from "@shared/schema";
 import { Badge, Card, IconBubble, Txt, type IconName } from "@/components/ui";
+import { useT, type Messages } from "@/i18n";
 import { radius, spacing, useTheme, type Theme } from "@/lib/theme";
 
 type Priority = StudyPack["focus"][number]["priority"];
 
-function priorityLook(theme: Theme, priority: Priority): { color: string; bg: string; icon: IconName; label: string } {
+function priorityLook(theme: Theme, m: Messages, priority: Priority): { color: string; bg: string; icon: IconName; label: string } {
+  const label = m.focus.priority[priority];
   return {
-    high: { color: theme.high, bg: theme.highSoft, icon: "flame" as const, label: "Must know" },
-    medium: { color: theme.medium, bg: theme.mediumSoft, icon: "flag" as const, label: "Important" },
-    low: { color: theme.low, bg: theme.lowSoft, icon: "leaf" as const, label: "Good to know" },
+    high: { color: theme.high, bg: theme.highSoft, icon: "flame" as const, label },
+    medium: { color: theme.medium, bg: theme.mediumSoft, icon: "flag" as const, label },
+    low: { color: theme.low, bg: theme.lowSoft, icon: "leaf" as const, label },
   }[priority];
 }
 
@@ -23,6 +25,7 @@ type FocusTabProps = {
 
 export function FocusTab({ pack, missedTopics }: FocusTabProps) {
   const theme = useTheme();
+  const m = useT();
 
   return (
     <View>
@@ -31,17 +34,17 @@ export function FocusTab({ pack, missedTopics }: FocusTabProps) {
           <IconBubble name="refresh-circle" color={theme.lostInk} background={theme.card} size={36} />
           <View style={styles.grow}>
             <Txt variant="bodyStrong" color={theme.lostInk}>
-              Review again
+              {m.focus.reviewAgain}
             </Txt>
-            <Txt variant="small">You missed quiz questions on {missedTopics.join(", ")}.</Txt>
+            <Txt variant="small">{m.focus.missed(missedTopics.join(", "))}</Txt>
           </View>
         </View>
       )}
 
-      {pack.focus.length === 0 && <Txt tone="muted">No clear priorities came out of this class.</Txt>}
+      {pack.focus.length === 0 && <Txt tone="muted">{m.focus.none}</Txt>}
 
       {pack.focus.map((item, i) => {
-        const look = priorityLook(theme, item.priority);
+        const look = priorityLook(theme, m, item.priority);
         return (
           <Card key={i}>
             <View style={styles.cardTop}>
@@ -74,6 +77,7 @@ export function FocusTab({ pack, missedTopics }: FocusTabProps) {
 /** Things to do before the next class, ticked off on this screen. */
 function NextSteps({ steps }: { steps: string[] }) {
   const theme = useTheme();
+  const m = useT();
   const [done, setDone] = useState<Set<number>>(new Set());
 
   function toggle(i: number) {
@@ -88,7 +92,7 @@ function NextSteps({ steps }: { steps: string[] }) {
   return (
     <Card>
       <View style={styles.stepsHeader}>
-        <Txt variant="heading">Before the next class</Txt>
+        <Txt variant="heading">{m.focus.nextSteps}</Txt>
         <Txt variant="small">
           {done.size}/{steps.length}
         </Txt>

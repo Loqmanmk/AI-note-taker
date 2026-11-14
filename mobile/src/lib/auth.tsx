@@ -10,6 +10,7 @@ import { expoGoReturnAddress, parseAuthRedirect } from "@shared/authRedirect";
 import { RECORDINGS_BUCKET } from "@shared/recordings";
 import { sendQueue } from "./sendQueue";
 import { supabase } from "./supabase";
+import { t } from "@/i18n";
 
 // Closes the sign-in popup when the web version comes back from Google.
 if (Platform.OS === "web") WebBrowser.maybeCompleteAuthSession();
@@ -48,7 +49,7 @@ async function completeSignIn(url: string): Promise<boolean> {
   const { code, error } = parseAuthRedirect(url);
   if (error) {
     console.warn("[auth] sign-in returned an error:", error);
-    throw new Error("Google sign-in was not completed. Try again.");
+    throw new Error(t().signIn.notCompleted);
   }
   if (!code) return false;
   if (exchangedCodes.has(code)) return true;
@@ -57,7 +58,7 @@ async function completeSignIn(url: string): Promise<boolean> {
   const exchange = await supabase.auth.exchangeCodeForSession(code);
   if (exchange.error) {
     console.warn("[auth] could not exchange the code:", exchange.error.message);
-    throw new Error("Could not finish signing in. Try again.");
+    throw new Error(t().signIn.couldNotFinish);
   }
   console.info("[auth] signed in");
   return true;
@@ -126,7 +127,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       provider: "google",
       options: { redirectTo, skipBrowserRedirect: true },
     });
-    if (error || !data.url) throw new Error("Could not open Google sign-in. Check your connection and try again.");
+    if (error || !data.url) throw new Error(t().signIn.couldNotOpen);
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     console.info(
@@ -138,7 +139,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     if (!(await completeSignIn(result.url))) {
       console.warn("[auth] the return link had no code:", forLogs(result.url));
-      throw new Error("Google sign-in was not completed. Try again.");
+      throw new Error(t().signIn.notCompleted);
     }
   }, []);
 
@@ -150,7 +151,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (!supabase) return;
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId) throw new Error("Sign in again to delete your account.");
+    if (!userId) throw new Error(t().account.signInAgainToDelete);
 
     // Storage files are not removed with the account, so delete them first.
     const files = await supabase.storage.from(RECORDINGS_BUCKET).list(userId);
@@ -158,7 +159,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await supabase.storage.from(RECORDINGS_BUCKET).remove(files.data.map((file) => `${userId}/${file.name}`));
     }
     const { error } = await supabase.rpc("delete_my_account");
-    if (error) throw new Error("Could not delete your account. Check your connection and try again.");
+    if (error) throw new Error(t().account.couldNotDelete);
 
     sendQueue.forgetUser(userId);
     // The account no longer exists, so only the session on this phone is cleared.

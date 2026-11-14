@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import {
   ActivityIndicator,
+  I18nManager,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +15,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
 export type IconName = ComponentProps<typeof Ionicons>["name"];
+
+/** Arrows that point "forward" follow the reading direction: right, or left in Arabic. */
+export function forwardChevron(): IconName {
+  return I18nManager.isRTL ? "chevron-back" : "chevron-forward";
+}
+
+export function forwardArrow(): IconName {
+  return I18nManager.isRTL ? "arrow-back" : "arrow-forward";
+}
 
 /* ---------- Text ---------- */
 

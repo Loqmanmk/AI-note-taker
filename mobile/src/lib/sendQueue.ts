@@ -4,7 +4,8 @@ import { AppState, Platform } from "react-native";
 import { z } from "zod";
 import { NOTE_LANGUAGE_CODES } from "@shared/constants";
 import type { SavedClass } from "@shared/schema";
-import { PlanLimitError, sendRecording } from "./api";
+import { t } from "@/i18n";
+import { ConnectionError, PlanLimitError, sendRecording } from "./api";
 import { AccountClassSource } from "./classSources";
 import { classStore } from "./classStore";
 import { notifyNotesFailed, notifyNotesReady } from "./notifications";
@@ -41,7 +42,7 @@ const RETRY_DELAYS_MS = [2000, 6000, 15000];
 const EMPTY: QueueEntry[] = [];
 
 function isConnectionProblem(err: unknown): boolean {
-  return err instanceof Error && /could not (reach|upload)/i.test(err.message);
+  return err instanceof ConnectionError;
 }
 
 function sleep(ms: number) {
@@ -153,7 +154,7 @@ class SendQueue {
           }
           return;
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Something went wrong. Try again.";
+          const message = err instanceof Error ? err.message : t().common.somethingWrong;
           if (isConnectionProblem(err) && attempt < RETRY_DELAYS_MS.length) {
             await sleep(RETRY_DELAYS_MS[attempt]);
             continue;
@@ -189,12 +190,12 @@ class SendQueue {
         this.deliver({ ...ready, date: entry.createdAt }, entry.id);
         notifyNotesReady(ready.id, ready.pack.title);
       } else if (pending?.status === "failed") {
-        const error = pending.error ?? "Your notes could not be written.";
+        const error = pending.error ?? t().history.queue.notWritten;
         this.patch(entry.id, { state: "failed", error });
         notifyNotesFailed(error);
         planStore.refresh(); // A failed class does not count.
       } else if (!pending) {
-        this.patch(entry.id, { state: "failed", error: "This class could not be found. Send it again." });
+        this.patch(entry.id, { state: "failed", error: t().history.queue.notFound });
       }
     }
     this.updatePolling();

@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth";
 import { confirmDestructive, showMessage } from "@/lib/confirm";
 import { openPrivacyPolicy } from "@/lib/links";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
+import { useT } from "@/i18n";
+import { AppLanguagePicker } from "./AppLanguagePicker";
 import { PlanUsage } from "./PlanUsage";
 import { Button, Txt } from "./ui";
 
@@ -15,6 +17,7 @@ export function AccountButton() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const m = useT();
   const { enabled, session, signOut, deleteAccount } = useAuth();
   const plan = usePlan();
   const [open, setOpen] = useState(false);
@@ -28,9 +31,9 @@ export function AccountButton() {
 
   function confirmSignOut() {
     confirmDestructive({
-      title: "Sign out?",
-      message: "Your classes stay saved in your account.",
-      confirmLabel: "Sign out",
+      title: m.account.signOutTitle,
+      message: m.account.signOutMessage,
+      confirmLabel: m.account.signOut,
       onConfirm: () => {
         setOpen(false);
         signOut();
@@ -40,17 +43,16 @@ export function AccountButton() {
 
   function confirmDeleteAccount() {
     confirmDestructive({
-      title: "Delete your account?",
-      message:
-        "Your account, all your classes and notes, and any recording waiting on this phone will be deleted permanently. This cannot be undone.",
-      confirmLabel: "Delete my account",
+      title: m.account.deleteTitle,
+      message: m.account.deleteMessage,
+      confirmLabel: m.account.deleteAccount,
       onConfirm: async () => {
         setDeleting(true);
         try {
           await deleteAccount();
           setOpen(false);
         } catch (err) {
-          showMessage("Account not deleted", err instanceof Error ? err.message : "Try again.");
+          showMessage(m.account.notDeleted, err instanceof Error ? err.message : m.common.tryAgain);
         } finally {
           setDeleting(false);
         }
@@ -62,7 +64,7 @@ export function AccountButton() {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Account: ${name || email}`}
+        accessibilityLabel={m.account.label(name || email)}
         hitSlop={8}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [styles.avatar, { backgroundColor: theme.primarySoft, opacity: pressed ? 0.7 : 1 }]}
@@ -71,7 +73,7 @@ export function AccountButton() {
       </Pressable>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel={m.common.close} />
         <View style={[styles.sheet, { backgroundColor: theme.card, paddingBottom: insets.bottom + spacing.lg }]}>
           <View style={[styles.handle, { backgroundColor: theme.line }]} />
           <View style={styles.who}>
@@ -95,15 +97,16 @@ export function AccountButton() {
             />
           )}
           <Txt variant="small" style={styles.note}>
-            Your classes are saved in your account, so they also appear on the FocusNotes website.
+            {m.account.savedNote}
           </Txt>
-          <Button icon="log-out-outline" label="Sign out" onPress={confirmSignOut} />
+          <AppLanguagePicker />
+          <Button icon="log-out-outline" label={m.account.signOut} onPress={confirmSignOut} />
           <View style={styles.links}>
-            <Button kind="ghost" icon="shield-checkmark-outline" label="Privacy policy" onPress={openPrivacyPolicy} />
+            <Button kind="ghost" icon="shield-checkmark-outline" label={m.account.privacy} onPress={openPrivacyPolicy} />
             <Button
               kind="ghost"
               icon="trash-outline"
-              label="Delete my account"
+              label={m.account.deleteAccount}
               loading={deleting}
               onPress={confirmDeleteAccount}
             />

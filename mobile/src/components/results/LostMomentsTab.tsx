@@ -2,20 +2,22 @@ import { StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { StudyPack } from "@shared/schema";
 import { Badge, Card, IconBubble, Txt } from "@/components/ui";
+import { useT } from "@/i18n";
 import { radius, spacing, useTheme } from "@/lib/theme";
 
 export function LostMomentsTab({ moments }: { moments: StudyPack["lost_moments"] }) {
   const theme = useTheme();
+  const m = useT();
 
   if (moments.length === 0) {
     return (
       <Card style={styles.empty}>
         <IconBubble name="help-buoy-outline" color={theme.lostInk} background={theme.lostSoft} size={52} />
         <Txt variant="heading" style={styles.center}>
-          No lost moments this time
+          {m.lost.noneTitle}
         </Txt>
         <Txt variant="small" style={styles.center}>
-          Next class, tap “I’m lost” whenever you stop following. That part will be re-explained here.
+          {m.lost.noneText}
         </Txt>
       </Card>
     );
@@ -25,10 +27,10 @@ export function LostMomentsTab({ moments }: { moments: StudyPack["lost_moments"]
     <View>
       {moments.map((moment, i) => (
         <Card key={i}>
-          <Badge label={`Moment ${moment.marker}`} icon="help-buoy" color={theme.lostInk} background={theme.lostSoft} />
+          <Badge label={m.lost.moment(moment.marker)} icon="help-buoy" color={theme.lostInk} background={theme.lostSoft} />
 
           <Txt variant="caption" style={styles.label}>
-            What the teacher said
+            {m.lost.said}
           </Txt>
           <Txt tone="muted">{moment.what_was_said}</Txt>
 
@@ -38,7 +40,7 @@ export function LostMomentsTab({ moments }: { moments: StudyPack["lost_moments"]
             <View style={styles.simpleTitle}>
               <Ionicons name="bulb" size={18} color={theme.primary} />
               <Txt variant="bodyStrong" color={theme.primary}>
-                In simpler words
+                {m.lost.simpler}
               </Txt>
             </View>
             <Txt>{moment.simple_explanation}</Txt>

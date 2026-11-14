@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useT } from "@/i18n";
 import { useTheme } from "@/lib/theme";
 
 const SIZE = 92;
@@ -15,6 +16,7 @@ type RecordButtonProps = {
 /** The big round button. Shows a microphone to start, a square to stop, and pulses while recording. */
 export function RecordButton({ recording, disabled, onPress }: RecordButtonProps) {
   const theme = useTheme();
+  const m = useT();
   // Created once and kept for the life of the button.
   const [pulse] = useState(() => new Animated.Value(0));
 
@@ -41,7 +43,7 @@ export function RecordButton({ recording, disabled, onPress }: RecordButtonProps
       {recording && <Animated.View style={[styles.ring, { backgroundColor: theme.recording }, ring]} />}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={recording ? "Stop recording" : "Start recording"}
+        accessibilityLabel={recording ? m.recorder.stop : m.recorder.start}
         accessibilityState={{ disabled: Boolean(disabled) }}
         disabled={disabled}
         onPress={onPress}

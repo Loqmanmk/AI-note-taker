@@ -4,14 +4,19 @@ function sameDay(a: Date, b: Date): boolean {
 }
 
 /** "Today", "Yesterday", a weekday within the last week, then a short date. */
-export function formatRelativeDay(iso: string, now: Date = new Date(), locale?: string): string {
+export function formatRelativeDay(
+  iso: string,
+  now: Date = new Date(),
+  locale?: string,
+  labels: { today: string; yesterday: string } = { today: "Today", yesterday: "Yesterday" },
+): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  if (sameDay(date, now)) return "Today";
+  if (sameDay(date, now)) return labels.today;
 
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (sameDay(date, yesterday)) return "Yesterday";
+  if (sameDay(date, yesterday)) return labels.yesterday;
 
   const ageDays = (now.getTime() - date.getTime()) / 86_400_000;
   if (ageDays > 0 && ageDays < 7) return date.toLocaleDateString(locale, { weekday: "long" });

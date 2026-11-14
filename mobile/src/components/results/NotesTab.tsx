@@ -3,9 +3,11 @@ import { LayoutAnimation, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { StudyPack } from "@shared/schema";
 import { Card, SectionHeader, Txt } from "@/components/ui";
+import { useT } from "@/i18n";
 import { radius, spacing, useTheme } from "@/lib/theme";
 
 export function NotesTab({ pack }: { pack: StudyPack }) {
+  const m = useT();
   return (
     <View>
       {pack.notes.map((section, i) => (
@@ -14,7 +16,7 @@ export function NotesTab({ pack }: { pack: StudyPack }) {
 
       {pack.key_terms.length > 0 && (
         <View style={styles.terms}>
-          <SectionHeader title="Key terms" detail="Tap a card to see its meaning" />
+          <SectionHeader title={m.notes.keyTerms} detail={m.notes.tapCard} />
           {pack.key_terms.map((entry, i) => (
             <Flashcard key={i} term={entry.term} definition={entry.definition} />
           ))}
@@ -59,12 +61,13 @@ function NoteSection({ heading, points }: { heading: string; points: string[] })
 /** Shows a term; tapping reveals its definition, like a revision card. */
 function Flashcard({ term, definition }: { term: string; definition: string }) {
   const theme = useTheme();
+  const m = useT();
   const [revealed, setRevealed] = useState(false);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityHint={revealed ? "Hides the definition" : "Shows the definition"}
+      accessibilityHint={revealed ? m.notes.hideDefinition : m.notes.showDefinition}
       onPress={() => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setRevealed((value) => !value);

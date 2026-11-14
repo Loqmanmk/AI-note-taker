@@ -2,6 +2,7 @@ import { TRANSCRIPT_MAX_CHARS } from "@/lib/constants";
 import { NotesRequestSchema } from "@/lib/schema";
 import { getStudyPackGenerator } from "@/lib/server/generatorFactory";
 import { admitRequest, errorResponse, generationResponse, planLimitResponse } from "@/lib/server/http";
+import { requestLanguage } from "@/lib/server/messages";
 
 export const maxDuration = 300;
 
@@ -32,8 +33,9 @@ export async function POST(req: Request) {
     return errorResponse(400, parsed.error.issues[0]?.message ?? "Invalid request.");
   }
 
-  const overLimit = await planLimitResponse(admitted.user, 0);
+  const language = requestLanguage(req);
+  const overLimit = await planLimitResponse(admitted.user, 0, language);
   if (overLimit) return overLimit;
 
-  return generationResponse(admitted.user, () => getStudyPackGenerator().generate(parsed.data));
+  return generationResponse(admitted.user, () => getStudyPackGenerator().generate(parsed.data), 0, language);
 }

@@ -1,14 +1,16 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { formatRelativeDay, pickIndex } from "@shared/format";
+import { pickIndex } from "@shared/format";
 import type { SavedClass } from "@shared/schema";
 import { formatClock } from "@shared/transcript";
 import type { ClassListStatus } from "@/lib/classStore";
 import { confirmDestructive, showMessage } from "@/lib/confirm";
 import type { QueueEntry } from "@/lib/sendQueue";
+import { useT } from "@/i18n";
+import { relativeDay } from "@/i18n/format";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
-import { Button, IconBubble, SectionHeader, Txt } from "./ui";
+import { Button, IconBubble, SectionHeader, Txt, forwardChevron } from "./ui";
 
 type HistoryListProps = {
   items: SavedClass[];
@@ -25,12 +27,13 @@ type HistoryListProps = {
 };
 
 export function HistoryList(props: HistoryListProps) {
+  const m = useT();
   const { queued, onRetrySend, onDiscardSend } = props;
   return (
     <>
       {queued.length > 0 && (
         <View style={styles.section}>
-          <SectionHeader title="In progress" detail={`${queued.length}`} />
+          <SectionHeader title={m.history.inProgress} detail={`${queued.length}`} />
           {queued.map((entry) => (
             <QueuedRow key={entry.id} entry={entry} onRetry={onRetrySend} onDiscard={onDiscardSend} />
           ))}
@@ -50,18 +53,19 @@ function SavedClasses({
   onTryExample,
   hideEmpty,
 }: HistoryListProps & { hideEmpty: boolean }) {
+  const m = useT();
   if (status === "loading" && items.length === 0) return <LoadingHistory />;
   if (status === "error" && items.length === 0) return <HistoryError onRetry={onRetry} />;
   if (items.length === 0) return hideEmpty ? null : <EmptyHistory onTryExample={onTryExample} />;
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Your classes" detail={`${items.length}`} />
+      <SectionHeader title={m.history.yourClasses} detail={`${items.length}`} />
       {items.map((item) => (
         <ClassRow key={item.id} item={item} onOpen={onOpen} onDelete={onDelete} />
       ))}
       <Txt variant="small" style={styles.tip}>
-        Press and hold a class to delete it.
+        {m.history.holdToDelete}
       </Txt>
     </View>
   );
@@ -69,18 +73,19 @@ function SavedClasses({
 
 function ClassRow({ item, onOpen, onDelete }: { item: SavedClass } & Pick<HistoryListProps, "onOpen" | "onDelete">) {
   const theme = useTheme();
+  const m = useT();
   const { pack } = item;
   const color = theme.avatars[pickIndex(pack.subject, theme.avatars.length)];
   const highPriority = pack.focus.filter((f) => f.priority === "high").length;
 
   function confirmDelete() {
     confirmDestructive({
-      title: "Delete this class?",
-      message: `“${pack.title}” will be deleted.`,
-      confirmLabel: "Delete",
+      title: m.history.deleteTitle,
+      message: m.history.deleteMessage(pack.title),
+      confirmLabel: m.common.delete,
       onConfirm: () => {
         onDelete(item.id).catch((err: unknown) =>
-          showMessage("Could not delete", err instanceof Error ? err.message : "Try again."),
+          showMessage(m.history.couldNotDelete, err instanceof Error ? err.message : m.common.tryAgain),
         );
       },
     });
@@ -89,8 +94,8 @@ function ClassRow({ item, onOpen, onDelete }: { item: SavedClass } & Pick<Histor
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${pack.title}, ${pack.subject}, ${formatRelativeDay(item.date)}`}
-      accessibilityHint="Opens the notes. Press and hold to delete."
+      accessibilityLabel={`${pack.title}, ${pack.subject}, ${relativeDay(item.date, m)}`}
+      accessibilityHint={m.history.openHint}
       onPress={() => onOpen(item.id)}
       onLongPress={confirmDelete}
       style={({ pressed }) => [
@@ -106,11 +111,11 @@ function ClassRow({ item, onOpen, onDelete }: { item: SavedClass } & Pick<Histor
           {pack.title}
         </Txt>
         <Txt variant="small" numberOfLines={1}>
-          {pack.subject} · {formatRelativeDay(item.date)}
-          {highPriority > 0 ? ` · ${highPriority} key topic${highPriority > 1 ? "s" : ""}` : ""}
+          {pack.subject} · {relativeDay(item.date, m)}
+          {highPriority > 0 ? ` · ${m.history.keyTopics(highPriority)}` : ""}
         </Txt>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={theme.faint} />
+      <Ionicons name={forwardChevron()} size={20} color={theme.faint} />
     </Pressable>
   );
 }
@@ -126,23 +131,23 @@ function QueuedRow({
   onDiscard: (id: string) => void;
 }) {
   const theme = useTheme();
+  const m = useT();
   const router = useRouter();
   const failed = entry.state === "failed";
-  const when = `${formatRelativeDay(entry.createdAt)} · ${formatClock(entry.durationSeconds)} recorded`;
-  const headline = entry.limitReached
-    ? "Plan limit reached"
-    : { sending: "Sending your recording…", processing: "Writing your notes…", failed: "Notes not written" }[entry.state];
+  const q = m.history.queue;
+  const when = q.recorded(relativeDay(entry.createdAt, m), formatClock(entry.durationSeconds));
+  const headline = entry.limitReached ? q.limitReached : q[entry.state];
   const detail = failed
-    ? (entry.error ?? "Something went wrong.")
+    ? (entry.error ?? m.common.somethingWrong)
     : entry.state === "processing"
-      ? "You can close the app. We will tell you when they are ready."
-      : "Keep a connection for a moment.";
+      ? q.processingDetail
+      : q.sendingDetail;
 
   function confirmDiscard() {
     confirmDestructive({
-      title: "Delete this recording?",
-      message: "The audio will be deleted from this phone and its notes will not be written.",
-      confirmLabel: "Delete",
+      title: q.deleteTitle,
+      message: q.deleteMessage,
+      confirmLabel: m.common.delete,
       onConfirm: () => onDiscard(entry.id),
     });
   }
@@ -176,20 +181,20 @@ function QueuedRow({
       </Txt>
       {failed && entry.limitReached && (
         <Txt variant="small" style={styles.queuedDetail}>
-          Your recording is kept on this phone: send it again after upgrading, or next month.
+          {q.keptOnPhone}
         </Txt>
       )}
       {failed && (
         <View style={styles.queuedActions}>
           {entry.limitReached ? (
             <>
-              <Button kind="primary" icon="diamond-outline" label="See plans" onPress={() => router.push("/plans")} style={styles.grow} />
-              <Button icon="refresh" label="Retry" onPress={() => onRetry(entry.id)} />
+              <Button kind="primary" icon="diamond-outline" label={m.plans.seePlans} onPress={() => router.push("/plans")} style={styles.grow} />
+              <Button icon="refresh" label={m.common.retry} onPress={() => onRetry(entry.id)} />
             </>
           ) : (
-            <Button kind="primary" icon="refresh" label="Retry" onPress={() => onRetry(entry.id)} style={styles.grow} />
+            <Button kind="primary" icon="refresh" label={m.common.retry} onPress={() => onRetry(entry.id)} style={styles.grow} />
           )}
-          <Button icon="trash-outline" label="Delete" onPress={confirmDiscard} />
+          <Button icon="trash-outline" label={m.common.delete} onPress={confirmDiscard} />
         </View>
       )}
     </View>
@@ -198,9 +203,10 @@ function QueuedRow({
 
 function LoadingHistory() {
   const theme = useTheme();
+  const m = useT();
   return (
-    <View style={styles.section} accessibilityLabel="Loading your classes" accessibilityRole="progressbar">
-      <SectionHeader title="Your classes" />
+    <View style={styles.section} accessibilityLabel={m.history.loading} accessibilityRole="progressbar">
+      <SectionHeader title={m.history.yourClasses} />
       {[0, 1, 2].map((i) => (
         <View key={i} style={[styles.row, { backgroundColor: theme.card, borderColor: theme.line, opacity: 1 - i * 0.25 }]}>
           <View style={[styles.avatar, { backgroundColor: theme.cardAlt }]} />
@@ -216,32 +222,34 @@ function LoadingHistory() {
 
 function HistoryError({ onRetry }: { onRetry: () => void }) {
   const theme = useTheme();
+  const m = useT();
   return (
     <View style={[styles.empty, { borderColor: theme.line }]} accessibilityRole="alert">
       <IconBubble name="cloud-offline-outline" color={theme.medium} background={theme.mediumSoft} size={56} />
       <Txt variant="heading" style={styles.center}>
-        Could not load your classes
+        {m.history.loadErrorTitle}
       </Txt>
       <Txt variant="small" style={styles.center}>
-        Check your internet connection. Your classes are safe in your account.
+        {m.history.loadErrorText}
       </Txt>
-      <Button kind="ghost" icon="refresh" label="Try again" onPress={onRetry} />
+      <Button kind="ghost" icon="refresh" label={m.common.tryAgain} onPress={onRetry} />
     </View>
   );
 }
 
 function EmptyHistory({ onTryExample }: { onTryExample: () => void }) {
   const theme = useTheme();
+  const m = useT();
   return (
     <View style={[styles.empty, { borderColor: theme.line }]}>
       <IconBubble name="sparkles" color={theme.primary} background={theme.primarySoft} size={56} />
       <Txt variant="heading" style={styles.center}>
-        Your classes will appear here
+        {m.history.emptyTitle}
       </Txt>
       <Txt variant="small" style={styles.center}>
-        Record your first class, or see what FocusNotes makes from an example biology lesson.
+        {m.history.emptyText}
       </Txt>
-      <Button kind="ghost" icon="play-circle-outline" label="Try an example class" onPress={onTryExample} />
+      <Button kind="ghost" icon="play-circle-outline" label={m.history.tryExample} onPress={onTryExample} />
     </View>
   );
 }

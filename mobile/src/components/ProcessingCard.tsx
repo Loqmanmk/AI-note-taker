@@ -2,21 +2,19 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatClock } from "@shared/transcript";
+import { useT, type Messages } from "@/i18n";
 import { spacing, useTheme } from "@/lib/theme";
 import { Card, Txt } from "./ui";
 
 export type ProcessingStep = { label: string; /** Seconds after the start when this step usually begins. */ startsAt: number };
 
-export const RECORDING_STEPS: ProcessingStep[] = [
-  { label: "Sending your recording", startsAt: 0 },
-  { label: "Listening to the class", startsAt: 6 },
-  { label: "Writing your notes and quiz", startsAt: 25 },
-];
-
-export const TRANSCRIPT_STEPS: ProcessingStep[] = [
-  { label: "Reading the class", startsAt: 0 },
-  { label: "Writing your notes and quiz", startsAt: 4 },
-];
+/** The steps of turning a transcript into notes, in the app's language. */
+export function transcriptSteps(m: Messages): ProcessingStep[] {
+  return [
+    { label: m.processing.reading, startsAt: 0 },
+    { label: m.processing.writing, startsAt: 4 },
+  ];
+}
 
 /**
  * What happens while the notes are written. The server does not report progress,
@@ -24,6 +22,7 @@ export const TRANSCRIPT_STEPS: ProcessingStep[] = [
  */
 export function ProcessingCard({ steps }: { steps: ProcessingStep[] }) {
   const theme = useTheme();
+  const m = useT();
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -37,7 +36,7 @@ export function ProcessingCard({ steps }: { steps: ProcessingStep[] }) {
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <Txt variant="heading">Creating your study pack</Txt>
+        <Txt variant="heading">{m.processing.title}</Txt>
         <Txt variant="small" style={styles.clock}>
           {formatClock(elapsed)}
         </Txt>
@@ -61,7 +60,7 @@ export function ProcessingCard({ steps }: { steps: ProcessingStep[] }) {
       })}
 
       <Txt variant="small" style={styles.note}>
-        Usually about a minute. You can keep the app open and wait here.
+        {m.processing.note}
       </Txt>
     </Card>
   );

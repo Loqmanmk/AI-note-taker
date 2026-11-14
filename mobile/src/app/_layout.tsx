@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -12,6 +12,8 @@ import {
   useFonts,
 } from "@expo-google-fonts/manrope";
 import { ClassSourceSync } from "@/components/ClassSourceSync";
+import { languageStore } from "@/i18n";
+import { ensureLayoutDirection } from "@/i18n/direction";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { onNotesNotificationOpened } from "@/lib/notifications";
 import { fonts, useTheme } from "@/lib/theme";
@@ -40,8 +42,9 @@ function RootNavigator() {
     Manrope_700Bold,
     Manrope_800ExtraBold,
   });
+  const languageReady = useLanguageReady();
   // If the fonts fail to load, carry on with the system font rather than blocking the app.
-  const ready = (fontsLoaded || Boolean(fontError)) && !auth.isLoading;
+  const ready = (fontsLoaded || Boolean(fontError)) && !auth.isLoading && languageReady;
   // Without accounts set up, the app is open; otherwise a session is required.
   const signedIn = !auth.enabled || auth.session !== null;
 
@@ -73,7 +76,7 @@ function RootNavigator() {
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="index" options={{ headerShown: false, title: "FocusNotes" }} />
           <Stack.Screen name="class/[id]" options={{ title: "" }} />
-          <Stack.Screen name="plans" options={{ title: "Plans" }} />
+          <Stack.Screen name="plans" options={{ title: "" }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false, title: "Sign in" }} />
@@ -81,4 +84,26 @@ function RootNavigator() {
       </Stack>
     </>
   );
+}
+
+/**
+ * Loads the student's language and lays the app out in its direction (right to left for Arabic).
+ * Stays false while the app restarts to change direction, so the splash screen covers it.
+ */
+function useLanguageReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    languageStore
+      .load()
+      .then(ensureLayoutDirection)
+      .then((restarting) => {
+        if (active && !restarting) setReady(true);
+      })
+      .catch(() => active && setReady(true));
+    return () => {
+      active = false;
+    };
+  }, []);
+  return ready;
 }

@@ -1,8 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { formatMinutes } from "@shared/plans";
 import { formatClock } from "@shared/transcript";
 import type { ClassRecorder } from "@/hooks/useClassRecorder";
+import { useT } from "@/i18n";
+import { formatLength } from "@/i18n/format";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 import { Card, Txt } from "../ui";
 import { LevelMeter } from "./LevelMeter";
@@ -11,10 +12,11 @@ import { RecordButton } from "./RecordButton";
 
 function StatusPill({ phase }: { phase: ClassRecorder["phase"] }) {
   const theme = useTheme();
+  const m = useT();
   const look = {
-    idle: { text: "Ready to record", color: theme.muted, bg: theme.cardAlt, icon: null },
-    recording: { text: "Recording", color: theme.recording, bg: theme.highSoft, icon: "dot" as const },
-    recorded: { text: "Recording saved", color: theme.good, bg: theme.goodSoft, icon: "check" as const },
+    idle: { text: m.recorder.status.idle, color: theme.muted, bg: theme.cardAlt, icon: null },
+    recording: { text: m.recorder.status.recording, color: theme.recording, bg: theme.highSoft, icon: "dot" as const },
+    recorded: { text: m.recorder.status.recorded, color: theme.good, bg: theme.goodSoft, icon: "check" as const },
   }[phase];
 
   return (
@@ -25,12 +27,6 @@ function StatusPill({ phase }: { phase: ClassRecorder["phase"] }) {
     </View>
   );
 }
-
-const HINTS = {
-  idle: "Put your phone near the teacher and tap to start. Check that you are allowed to record this class.",
-  recording: "You can lock your phone or use other apps: recording continues.",
-  recorded: "",
-};
 
 /** Warn this long before the plan's limit stops the recording. */
 const WARN_BEFORE_LIMIT_SECONDS = 5 * 60;
@@ -46,16 +42,18 @@ type RecorderPanelProps = {
 
 export function RecorderPanel({ recorder, disabled, onStart, planName }: RecorderPanelProps) {
   const theme = useTheme();
+  const m = useT();
   const { phase, seconds, levels, lostCount, maxSeconds } = recorder;
+  const hint = phase === "recorded" ? "" : m.recorder.hints[phase];
   const isRecording = phase === "recording";
   const remaining = maxSeconds === undefined ? Infinity : maxSeconds - seconds;
   const limitNote =
     maxSeconds === undefined
       ? ""
       : isRecording && remaining <= WARN_BEFORE_LIMIT_SECONDS
-        ? `Recording stops in ${formatClock(Math.max(0, remaining))}, the longest class${planName ? ` on ${planName}` : ""}.`
+        ? m.recorder.stopsIn(formatClock(Math.max(0, remaining)), planName)
         : phase === "idle"
-          ? `Up to ${formatMinutes(maxSeconds / 60)} per class${planName ? ` on ${planName}` : ""}.`
+          ? m.recorder.upTo(formatLength(maxSeconds / 60, m), planName)
           : "";
 
   return (
@@ -64,7 +62,7 @@ export function RecorderPanel({ recorder, disabled, onStart, planName }: Recorde
 
       <Text
         style={[styles.timer, { color: theme.ink }]}
-        accessibilityLabel={`${isRecording ? "Recording time" : "Recorded time"} ${formatClock(seconds)}`}
+        accessibilityLabel={`${isRecording ? m.recorder.recordingTime : m.recorder.recordedTime} ${formatClock(seconds)}`}
       >
         {formatClock(seconds)}
       </Text>
@@ -73,11 +71,8 @@ export function RecorderPanel({ recorder, disabled, onStart, planName }: Recorde
 
       {phase === "recorded" ? (
         <View style={styles.summary}>
-          <Summary icon="time-outline" text={`${formatClock(seconds)} recorded`} />
-          <Summary
-            icon="help-buoy-outline"
-            text={lostCount ? `${lostCount} lost moment${lostCount > 1 ? "s" : ""}` : "No lost moments"}
-          />
+          <Summary icon="time-outline" text={m.recorder.recordedLength(formatClock(seconds))} />
+          <Summary icon="help-buoy-outline" text={m.recorder.lostMoments(lostCount)} />
         </View>
       ) : (
         <RecordButton
@@ -87,9 +82,9 @@ export function RecorderPanel({ recorder, disabled, onStart, planName }: Recorde
         />
       )}
 
-      {HINTS[phase] !== "" && (
+      {hint !== "" && (
         <Txt variant="small" style={styles.hint}>
-          {HINTS[phase]}
+          {hint}
         </Txt>
       )}
 

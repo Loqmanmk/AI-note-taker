@@ -9,7 +9,6 @@ export type Plan = {
   maxRecordingMinutes: number;
   /** Displayed prices; the real price is set in the store, which can adapt it per country. */
   price: { usdMonthly: number; madMonthly: number } | null;
-  features: string[];
 };
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -19,7 +18,6 @@ export const PLANS: Record<PlanId, Plan> = {
     classesPerMonth: 3,
     maxRecordingMinutes: 30,
     price: null,
-    features: ["3 classes a month", "Recordings up to 30 minutes", "Notes, focus topics and quiz", "“I’m lost” re-explanations"],
   },
   premium: {
     id: "premium",
@@ -27,7 +25,6 @@ export const PLANS: Record<PlanId, Plan> = {
     classesPerMonth: 30,
     maxRecordingMinutes: 120,
     price: { usdMonthly: 4.99, madMonthly: 49 },
-    features: ["30 classes a month", "Recordings up to 2 hours", "Everything in Free"],
   },
   pro: {
     id: "pro",
@@ -35,7 +32,6 @@ export const PLANS: Record<PlanId, Plan> = {
     classesPerMonth: 100,
     maxRecordingMinutes: 180,
     price: { usdMonthly: 8.99, madMonthly: 89 },
-    features: ["100 classes a month (fair use)", "Recordings up to 3 hours", "Everything in Premium"],
   },
 };
 
@@ -76,36 +72,14 @@ export type PlanStatus = {
   maxRecordingMinutes: number;
 };
 
-export type Allowance =
-  | { ok: true }
-  | { ok: false; reason: "monthly_limit" | "too_long"; message: string };
+export type Allowance = { ok: true } | { ok: false; reason: "monthly_limit" | "too_long" };
 
 /** Whether a new class may be created under the student's plan. */
 export function checkAllowance(status: PlanStatus, recordingSeconds: number): Allowance {
-  const plan = PLANS[status.plan];
-  if (status.classesUsed >= status.classesPerMonth) {
-    return {
-      ok: false,
-      reason: "monthly_limit",
-      message:
-        status.plan === "pro"
-          ? `You have used your ${plan.classesPerMonth} classes this month. They come back on the 1st.`
-          : `You have used your ${plan.classesPerMonth} ${plan.name} classes this month. Upgrade to keep going.`,
-    };
-  }
+  if (status.classesUsed >= status.classesPerMonth) return { ok: false, reason: "monthly_limit" };
   // Leeway, since the length is estimated from the file size.
-  if (recordingSeconds > status.maxRecordingMinutes * 60 * 1.1) {
-    return {
-      ok: false,
-      reason: "too_long",
-      message: `${plan.name} accepts recordings up to ${formatMinutes(status.maxRecordingMinutes)}. Upgrade for longer classes.`,
-    };
-  }
+  if (recordingSeconds > status.maxRecordingMinutes * 60 * 1.1) return { ok: false, reason: "too_long" };
   return { ok: true };
-}
-
-export function formatMinutes(minutes: number): string {
-  return minutes % 60 === 0 ? `${minutes / 60} hour${minutes === 60 ? "" : "s"}` : `${minutes} minutes`;
 }
 
 /** The phone records at about 32 kbit/s, so the size gives an estimate of the length. */

@@ -3,7 +3,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import type { QuizAnswers, QuizScore } from "@shared/quiz";
 import type { StudyPack } from "@shared/schema";
-import { Button, Card, ProgressBar, Txt } from "@/components/ui";
+import { Button, Card, ProgressBar, Txt, forwardArrow } from "@/components/ui";
+import { useT } from "@/i18n";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
 type QuizTabProps = {
@@ -21,13 +22,15 @@ type QuizTabProps = {
 /** One question at a time, then a score. */
 export function QuizTab(props: QuizTabProps) {
   const { quiz, index } = props;
-  if (quiz.length === 0) return <Txt tone="muted">No quiz for this class.</Txt>;
+  const m = useT();
+  if (quiz.length === 0) return <Txt tone="muted">{m.quiz.none}</Txt>;
   if (index >= quiz.length) return <QuizResult {...props} />;
   return <QuizQuestion {...props} />;
 }
 
 function QuizQuestion({ quiz, answers, index, onAnswer, onNext }: QuizTabProps) {
   const theme = useTheme();
+  const m = useT();
   const q = quiz[index];
   const picked = answers[index];
   const answered = picked !== undefined;
@@ -44,7 +47,7 @@ function QuizQuestion({ quiz, answers, index, onAnswer, onNext }: QuizTabProps) 
     <View>
       <View style={styles.progressRow}>
         <Txt variant="label" tone="muted">
-          Question {index + 1} of {quiz.length}
+          {m.quiz.progress(index + 1, quiz.length)}
         </Txt>
       </View>
       <ProgressBar value={(index + (answered ? 1 : 0)) / quiz.length} />
@@ -67,7 +70,7 @@ function QuizQuestion({ quiz, answers, index, onAnswer, onNext }: QuizTabProps) 
               key={j}
               accessibilityRole="button"
               accessibilityState={{ disabled: answered, selected: j === picked }}
-              accessibilityLabel={`${String.fromCharCode(65 + j)}. ${option}${isRight ? ", correct answer" : isWrong ? ", your answer, wrong" : ""}`}
+              accessibilityLabel={`${String.fromCharCode(65 + j)}. ${option}${isRight ? `, ${m.quiz.correctAnswer}` : isWrong ? `, ${m.quiz.wrongAnswer}` : ""}`}
               disabled={answered}
               onPress={() => answer(j)}
               style={({ pressed }) => [
@@ -95,7 +98,7 @@ function QuizQuestion({ quiz, answers, index, onAnswer, onNext }: QuizTabProps) 
             accessibilityLiveRegion="polite"
           >
             <Txt variant="bodyStrong" color={correct ? theme.good : theme.high}>
-              {correct ? "Correct!" : "Not quite."}
+              {correct ? m.quiz.correct : m.quiz.notQuite}
             </Txt>
             <Txt>{q.explanation}</Txt>
           </View>
@@ -105,8 +108,8 @@ function QuizQuestion({ quiz, answers, index, onAnswer, onNext }: QuizTabProps) 
       {answered && (
         <Button
           kind="primary"
-          icon={isLast ? "trophy-outline" : "arrow-forward"}
-          label={isLast ? "See my score" : "Next question"}
+          icon={isLast ? "trophy-outline" : forwardArrow()}
+          label={isLast ? m.quiz.seeScore : m.quiz.next}
           onPress={onNext}
         />
       )}
@@ -116,13 +119,14 @@ function QuizQuestion({ quiz, answers, index, onAnswer, onNext }: QuizTabProps) 
 
 function QuizResult({ quiz, score, onRestart, onReviewFocus }: QuizTabProps) {
   const theme = useTheme();
+  const m = useT();
   const ratio = score.correct / quiz.length;
   const band =
     ratio >= 0.8
-      ? { color: theme.good, bg: theme.goodSoft, title: "Excellent!", text: "You understood this class well." }
+      ? { color: theme.good, bg: theme.goodSoft, ...m.quiz.bands.high }
       : ratio >= 0.5
-        ? { color: theme.medium, bg: theme.mediumSoft, title: "Good start", text: "A short review and you will have it." }
-        : { color: theme.high, bg: theme.highSoft, title: "Keep going", text: "Review the focus topics, then try again." };
+        ? { color: theme.medium, bg: theme.mediumSoft, ...m.quiz.bands.mid }
+        : { color: theme.high, bg: theme.highSoft, ...m.quiz.bands.low };
 
   return (
     <Card style={styles.result}>
@@ -139,14 +143,14 @@ function QuizResult({ quiz, score, onRestart, onReviewFocus }: QuizTabProps) {
       </Txt>
       {score.missedTopics.length > 0 && (
         <Txt variant="small" style={[styles.center, styles.missed]}>
-          To review: {score.missedTopics.join(", ")}
+          {m.quiz.toReview(score.missedTopics.join(", "))}
         </Txt>
       )}
       <View style={styles.resultActions}>
         {score.missedTopics.length > 0 && (
-          <Button kind="primary" icon="flame" label="Review focus topics" onPress={onReviewFocus} />
+          <Button kind="primary" icon="flame" label={m.quiz.reviewFocus} onPress={onReviewFocus} />
         )}
-        <Button icon="refresh" label="Try the quiz again" onPress={onRestart} />
+        <Button icon="refresh" label={m.quiz.again} onPress={onRestart} />
       </View>
     </Card>
   );

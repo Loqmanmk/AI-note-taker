@@ -13,6 +13,7 @@ import { File as LocalFile } from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
 import type { Recording } from "@/lib/api";
+import { t } from "@/i18n";
 
 /**
  * Speech-quality mono audio at a low bitrate: about 15 MB per hour, small
@@ -90,7 +91,7 @@ export function useClassRecorder(maxSeconds?: number) {
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        setError("FocusNotes needs the microphone to record your class. Allow it in your phone's settings.");
+        setError(t().recorder.micDenied);
         return;
       }
       // Keep recording when the phone locks or the student switches apps (needs an app build,
@@ -109,7 +110,7 @@ export function useClassRecorder(maxSeconds?: number) {
       setRecording(null);
       setPhase("recording");
     } catch {
-      setError("Could not start recording. Close other apps that use the microphone and try again.");
+      setError(t().recorder.couldNotStart);
     }
   }, [recorder, maxSeconds]);
 
@@ -118,7 +119,7 @@ export function useClassRecorder(maxSeconds?: number) {
     (seconds: number, uri: string | null) => {
       setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false }).catch(() => {});
       if (!uri) {
-        setError("The recording could not be saved. Try again.");
+        setError(t().recorder.couldNotSave);
         setPhase("idle");
         return;
       }

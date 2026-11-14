@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatClock } from "@shared/transcript";
 import { Txt } from "@/components/ui";
+import { useT } from "@/i18n";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
 type LostButtonProps = {
@@ -14,6 +15,7 @@ type LostButtonProps = {
 /** The "I'm lost" button, with a short confirmation of the moment that was marked. */
 export function LostButton({ count, onMark }: LostButtonProps) {
   const theme = useTheme();
+  const m = useT();
   const [confirmation, setConfirmation] = useState("");
   const [fade] = useState(() => new Animated.Value(0));
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -22,7 +24,7 @@ export function LostButton({ count, onMark }: LostButtonProps) {
 
   function press() {
     const seconds = onMark();
-    setConfirmation(`Marked at ${formatClock(seconds)}. It will be re-explained.`);
+    setConfirmation(m.recorder.lostMarked(formatClock(seconds)));
     fade.setValue(1);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -34,8 +36,8 @@ export function LostButton({ count, onMark }: LostButtonProps) {
     <View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="I'm lost"
-        accessibilityHint="Marks this moment so it gets re-explained after class"
+        accessibilityLabel={m.recorder.lost}
+        accessibilityHint={m.recorder.lostHint}
         onPress={press}
         style={({ pressed }) => [
           styles.button,
@@ -43,7 +45,7 @@ export function LostButton({ count, onMark }: LostButtonProps) {
         ]}
       >
         <Ionicons name="help-buoy" size={26} color="#FFFFFF" />
-        <Text style={styles.label}>I’m lost</Text>
+        <Text style={styles.label}>{m.recorder.lost}</Text>
         {count > 0 && (
           <View style={styles.count}>
             <Text style={[styles.countText, { color: theme.lost }]}>{count}</Text>

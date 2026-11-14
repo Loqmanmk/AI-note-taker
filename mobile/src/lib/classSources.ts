@@ -11,6 +11,7 @@ import {
 } from "@shared/classes";
 import { HISTORY_MAX_ITEMS } from "@shared/constants";
 import { SavedClassSchema, type SavedClass } from "@shared/schema";
+import { t } from "@/i18n";
 
 /** Where a student's past classes are kept. */
 export interface ClassSource {
@@ -77,6 +78,6 @@ export class AccountClassSource implements ClassSource {
 
   async remove(id: string): Promise<void> {
     const { error } = await this.supabase.from(CLASSES_TABLE).delete().eq("id", id);
-    if (error) throw new Error("Could not delete the class. Check your connection and try again.");
+    if (error) throw new Error(t().history.deleteFailed);
   }
 }

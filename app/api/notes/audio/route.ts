@@ -16,6 +16,7 @@ import {
   planLimitResponse,
   recordUsage,
 } from "@/lib/server/http";
+import { requestLanguage, serverMessages, type ServerLanguage } from "@/lib/server/messages";
 import { supportsAudio, type AudioStudyPackGenerator } from "@/lib/server/studyPackGenerator";
 
 /** The longest a Vercel function may run on the free plan. The generator keeps within it. */
@@ -24,7 +25,6 @@ export const maxDuration = 300;
 /** Room for the form fields and multipart boundaries around the audio. */
 const MAX_UPLOAD_BODY_BYTES = AUDIO_MAX_BYTES + 64 * 1024;
 const MAX_JSON_BODY_CHARS = 10_000;
-const TOO_LONG = "The recording is too long. Split the class into two parts.";
 
 /**
  * Creates a study pack from a recording of a class, sent in one of two ways:
@@ -43,9 +43,11 @@ export async function POST(req: Request) {
     return errorResponse(415, "Send the recording as JSON or multipart form data.");
   }
   // Refuse oversized bodies before reading them into memory.
+  const language = requestLanguage(req);
+  const m = serverMessages(language);
   const declaredLength = Number(req.headers.get("content-length") ?? 0);
   if (declaredLength > (isStored ? MAX_JSON_BODY_CHARS : MAX_UPLOAD_BODY_BYTES)) {
-    return errorResponse(413, isStored ? "The request is too large." : TOO_LONG);
+    return errorResponse(413, isStored ? "The request is too large." : m.recordingTooLong);
   }
 
   const admitted = await admitRequest(req);
@@ -56,10 +58,18 @@ export async function POST(req: Request) {
     return errorResponse(501, "Recordings are not supported with the current AI provider.");
   }
 
-  return isStored ? fromStorage(req, admitted.user, generator) : fromUpload(req, admitted.user, generator);
+  return isStored
+    ? fromStorage(req, admitted.user, generator, language)
+    : fromUpload(req, admitted.user, generator, language);
 }
 
-async function fromStorage(req: Request, user: AuthUser | null, generator: AudioStudyPackGenerator) {
+async function fromStorage(
+  req: Request,
+  user: AuthUser | null,
+  generator: AudioStudyPackGenerator,
+  language: ServerLanguage,
+) {
+  const m = serverMessages(language);
   const { recordings, repository } = getAccounts();
   if (!user || !recordings || !repository) return errorResponse(400, "Sign in to send recordings this way.");
 
@@ -85,21 +95,21 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
 
   const audio = await recordings.download(user, recordingPath);
   const refusal = !audio
-    ? errorResponse(404, "The recording could not be found. Record the class again.")
+    ? errorResponse(404, m.recordingNotFound)
     : audio.size > AUDIO_MAX_BYTES
-      ? errorResponse(413, TOO_LONG)
+      ? errorResponse(413, m.recordingTooLong)
       : audio.size < AUDIO_MIN_BYTES
-        ? errorResponse(400, "The recording is too short to make notes from.")
+        ? errorResponse(400, m.recordingTooShort)
         : null;
   const mimeType = resolveAudioMimeType(audio?.type ?? "", recordingPath);
   if (refusal || !audio || !mimeType) {
     await removeRecording();
-    return refusal ?? errorResponse(415, "This audio format is not supported.");
+    return refusal ?? errorResponse(415, m.unsupportedFormat);
   }
 
   // Estimated from the size, which the phone cannot fake, rather than a length it reports.
   const recordingSeconds = audio.size / RECORDING_BYTES_PER_SECOND;
-  const overLimit = await planLimitResponse(user, recordingSeconds);
+  const overLimit = await planLimitResponse(user, recordingSeconds, language);
   if (overLimit) {
     await removeRecording();
     return overLimit;
@@ -112,6 +122,7 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
         user,
         () => generator.generateFromAudio({ ...fields, audio, mimeType }),
         recordingSeconds,
+        language,
       );
     } finally {
       await removeRecording();
@@ -124,7 +135,7 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
   } catch (err) {
     console.error("[notes] could not create the class", err);
     await removeRecording();
-    return errorResponse(500, "Could not save the class. Try again.");
+    return errorResponse(500, m.couldNotSave);
   }
 
   // Answer now; the student can leave the app while the notes are written.
@@ -135,7 +146,7 @@ async function fromStorage(req: Request, user: AuthUser | null, generator: Audio
       await recordUsage(user, recordingSeconds);
     } catch (err) {
       console.error(`[notes] background job ${classId} failed`, err);
-      await repository.fail(user, classId, generationFailureMessage(err)).catch((failErr: unknown) => {
+      await repository.fail(user, classId, generationFailureMessage(err, language)).catch((failErr: unknown) => {
         console.error("[notes] could not mark the class as failed", failErr);
       });
     } finally {
@@ -156,7 +167,13 @@ function parseJsonField(value: FormDataEntryValue | null): unknown {
   }
 }
 
-async function fromUpload(req: Request, user: AuthUser | null, generator: AudioStudyPackGenerator) {
+async function fromUpload(
+  req: Request,
+  user: AuthUser | null,
+  generator: AudioStudyPackGenerator,
+  language: ServerLanguage,
+) {
+  const m = serverMessages(language);
   let form: FormData;
   try {
     form = await req.formData();
@@ -166,12 +183,12 @@ async function fromUpload(req: Request, user: AuthUser | null, generator: AudioS
 
   const audio = form.get("audio");
   if (!(audio instanceof File)) return errorResponse(400, "The recording is missing.");
-  if (audio.size > AUDIO_MAX_BYTES) return errorResponse(413, TOO_LONG);
-  if (audio.size < AUDIO_MIN_BYTES) return errorResponse(400, "The recording is too short to make notes from.");
+  if (audio.size > AUDIO_MAX_BYTES) return errorResponse(413, m.recordingTooLong);
+  if (audio.size < AUDIO_MIN_BYTES) return errorResponse(400, m.recordingTooShort);
 
   // The type is declared by the client; the AI service rejects files that are not really audio.
   const mimeType = resolveAudioMimeType(audio.type, audio.name);
-  if (!mimeType) return errorResponse(415, "This audio format is not supported.");
+  if (!mimeType) return errorResponse(415, m.unsupportedFormat);
 
   const fields = AudioNotesFieldsSchema.safeParse({
     language: form.get("language") || undefined,
@@ -179,5 +196,5 @@ async function fromUpload(req: Request, user: AuthUser | null, generator: AudioS
   });
   if (!fields.success) return errorResponse(400, fields.error.issues[0]?.message ?? "Invalid request.");
 
-  return generationResponse(user, () => generator.generateFromAudio({ ...fields.data, audio, mimeType }));
+  return generationResponse(user, () => generator.generateFromAudio({ ...fields.data, audio, mimeType }), 0, language);
 }

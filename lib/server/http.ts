@@ -1,28 +1,38 @@
-import { checkAllowance } from "../plans";
+import { checkAllowance, type PlanStatus } from "../plans";
 import type { NotesResponse } from "../schema";
 import { getAccounts } from "./accounts";
 import type { AuthUser } from "./auth";
 import { RateLimiter } from "./rateLimiter";
+import { formatLength, planDisplayName, requestLanguage, serverMessages, type ServerLanguage } from "./messages";
 import { authenticate } from "./requestAuth";
 import { GenerationError, type GenerationErrorCode, type GenerationResult } from "./studyPackGenerator";
 
 /** Every AI request has a cost, so cap how often one client can ask. Shared by all notes routes. */
 const limiter = new RateLimiter(10, 10 * 60 * 1000);
 
-const BUSY = "The AI service is busy right now. Wait a few minutes and try again.";
+type MessageKey = "busy" | "declined" | "tooLongToProcess" | "misconfigured";
 
-const ERROR_RESPONSES: Record<GenerationErrorCode, { status: number; message: string }> = {
-  declined: { status: 422, message: "The AI could not process this class." },
-  too_long: { status: 422, message: "The class was too long to process in one go. Try a shorter recording." },
-  misconfigured: { status: 500, message: "The server is not configured correctly." },
-  rate_limited: { status: 503, message: BUSY },
-  timeout: { status: 504, message: BUSY },
-  unavailable: { status: 502, message: BUSY },
+const ERROR_RESPONSES: Record<GenerationErrorCode, { status: number; message: MessageKey }> = {
+  declined: { status: 422, message: "declined" },
+  too_long: { status: 422, message: "tooLongToProcess" },
+  misconfigured: { status: 500, message: "misconfigured" },
+  rate_limited: { status: 503, message: "busy" },
+  timeout: { status: 504, message: "busy" },
+  unavailable: { status: 502, message: "busy" },
 };
 
 /** A message safe to show the student for any failure while writing notes. */
-export function generationFailureMessage(err: unknown): string {
-  return err instanceof GenerationError ? ERROR_RESPONSES[err.code].message : "Something went wrong. Try again.";
+export function generationFailureMessage(err: unknown, language: ServerLanguage = "en"): string {
+  const m = serverMessages(language);
+  return err instanceof GenerationError ? m[ERROR_RESPONSES[err.code].message] : m.somethingWrong;
+}
+
+/** Why the plan refused a class, in the student's language. */
+function planLimitMessage(status: PlanStatus, reason: "monthly_limit" | "too_long", language: ServerLanguage): string {
+  const m = serverMessages(language);
+  const name = planDisplayName(status.plan);
+  if (reason === "too_long") return m.tooLongForPlan(name, formatLength(status.maxRecordingMinutes, m));
+  return status.plan === "pro" ? m.monthlyLimitPro(status.classesPerMonth) : m.monthlyLimit(status.classesPerMonth, name);
 }
 
 export function errorResponse(status: number, message: string, headers?: HeadersInit) {
@@ -37,19 +47,24 @@ export const PLAN_LIMIT_CODE = "plan_limit";
  * If the plan cannot be read, the class is allowed and the problem logged: an outage of the
  * usage tables should not stop students from getting their notes.
  */
-export async function planLimitResponse(user: AuthUser | null, recordingSeconds: number): Promise<Response | undefined> {
+export async function planLimitResponse(
+  user: AuthUser | null,
+  recordingSeconds: number,
+  language: ServerLanguage = "en",
+): Promise<Response | undefined> {
   const plans = getAccounts().plans;
   if (!user || !plans) return undefined;
-  let allowance: ReturnType<typeof checkAllowance>;
+  let status: PlanStatus;
   try {
-    allowance = checkAllowance(await plans.status(user), recordingSeconds);
+    status = await plans.status(user);
   } catch (err) {
     console.error("[plans] could not check the plan; allowing this class", err);
     return undefined;
   }
+  const allowance = checkAllowance(status, recordingSeconds);
   if (allowance.ok) return undefined;
   return Response.json(
-    { error: allowance.message, code: PLAN_LIMIT_CODE, reason: allowance.reason },
+    { error: planLimitMessage(status, allowance.reason, language), code: PLAN_LIMIT_CODE, reason: allowance.reason },
     { status: 402, headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -74,7 +89,7 @@ function clientKey(req: Request, user: AuthUser | null): string {
 export function rateLimitResponse(req: Request, user: AuthUser | null): Response | undefined {
   const rate = limiter.check(clientKey(req, user));
   if (rate.allowed) return undefined;
-  return errorResponse(429, "You have made a lot of requests. Try again in a few minutes.", {
+  return errorResponse(429, serverMessages(requestLanguage(req)).rateLimited, {
     "Retry-After": String(rate.retryAfterSeconds),
   });
 }
@@ -116,6 +131,7 @@ export async function generationResponse(
   user: AuthUser | null,
   run: () => Promise<GenerationResult>,
   recordingSeconds = 0,
+  language: ServerLanguage = "en",
 ): Promise<Response> {
   try {
     const result = await run();
@@ -125,10 +141,10 @@ export async function generationResponse(
   } catch (err) {
     if (err instanceof GenerationError) {
       console.error(`[notes] generation failed: ${err.code}`, err.cause ?? "");
-      const { status, message } = ERROR_RESPONSES[err.code];
-      return errorResponse(status, message);
+      const { status } = ERROR_RESPONSES[err.code];
+      return errorResponse(status, generationFailureMessage(err, language));
     }
     console.error("[notes] unexpected error", err);
-    return errorResponse(500, "Something went wrong. Try again.");
+    return errorResponse(500, serverMessages(language).somethingWrong);
   }
 }

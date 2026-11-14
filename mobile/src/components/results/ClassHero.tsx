@@ -1,19 +1,21 @@
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { formatRelativeDay } from "@shared/format";
 import type { SavedClass } from "@shared/schema";
+import { useT } from "@/i18n";
+import { relativeDay } from "@/i18n/format";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
 /** The coloured header of a class: subject, title, date, and what is inside. */
 export function ClassHero({ saved }: { saved: SavedClass }) {
   const theme = useTheme();
+  const m = useT();
   const { pack } = saved;
   const keyTopics = pack.focus.filter((f) => f.priority === "high").length;
 
   const stats = [
-    { value: keyTopics, label: keyTopics === 1 ? "key topic" : "key topics" },
-    { value: pack.quiz.length, label: pack.quiz.length === 1 ? "question" : "questions" },
-    { value: pack.lost_moments.length, label: "re-explained" },
+    { value: keyTopics, label: m.classScreen.stats.keyTopics(keyTopics) },
+    { value: pack.quiz.length, label: m.classScreen.stats.questions(pack.quiz.length) },
+    { value: pack.lost_moments.length, label: m.classScreen.stats.reExplained },
   ];
 
   return (
@@ -27,7 +29,7 @@ export function ClassHero({ saved }: { saved: SavedClass }) {
         <View style={styles.subject}>
           <Text style={styles.subjectText}>{pack.subject}</Text>
         </View>
-        <Text style={styles.date}>{formatRelativeDay(saved.date)}</Text>
+        <Text style={styles.date}>{relativeDay(saved.date, m)}</Text>
       </View>
 
       <Text style={styles.title} accessibilityRole="header">

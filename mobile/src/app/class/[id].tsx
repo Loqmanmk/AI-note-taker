@@ -11,12 +11,14 @@ import { QuizTab } from "@/components/results/QuizTab";
 import { SectionTabs, type SectionTab } from "@/components/results/SectionTabs";
 import { Card, IconBubble, IconButton, Txt } from "@/components/ui";
 import { classStore } from "@/lib/classStore";
+import { useT } from "@/i18n";
 import { radius, spacing, useTheme } from "@/lib/theme";
 
 type TabId = "focus" | "notes" | "quiz" | "lost" | "summary";
 
 export default function ClassScreen() {
   const theme = useTheme();
+  const m = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const saved = classStore.find(id);
 
@@ -32,7 +34,7 @@ export default function ClassScreen() {
     return (
       <View style={styles.missing}>
         <IconBubble name="document-outline" color={theme.muted} background={theme.cardAlt} size={56} />
-        <Txt tone="muted">This class is no longer on this phone.</Txt>
+        <Txt tone="muted">{m.classScreen.missing}</Txt>
       </View>
     );
   }
@@ -40,21 +42,21 @@ export default function ClassScreen() {
   const { pack, demo } = saved;
   const quizDone = quizIndex >= pack.quiz.length;
   const tabs: SectionTab<TabId>[] = [
-    { id: "focus", label: "Focus", icon: "flame" },
-    { id: "notes", label: "Notes", icon: "document-text" },
+    { id: "focus", label: m.classScreen.tabs.focus, icon: "flame" },
+    { id: "notes", label: m.classScreen.tabs.notes, icon: "document-text" },
     {
       id: "quiz",
-      label: "Quiz",
+      label: m.classScreen.tabs.quiz,
       icon: "help-circle",
       badge: quizDone && pack.quiz.length ? `${score.correct}/${pack.quiz.length}` : undefined,
     },
     {
       id: "lost",
-      label: "Lost",
+      label: m.classScreen.tabs.lost,
       icon: "help-buoy",
       badge: pack.lost_moments.length ? String(pack.lost_moments.length) : undefined,
     },
-    { id: "summary", label: "Summary", icon: "reader" },
+    { id: "summary", label: m.classScreen.tabs.summary, icon: "reader" },
   ];
 
   /** Switches section; if the student had scrolled into the content, brings the tabs back to the top. */
@@ -74,7 +76,7 @@ export default function ClassScreen() {
       <Stack.Screen
         options={{
           title: "",
-          headerRight: () => <IconButton icon="share-outline" label="Share notes" onPress={share} />,
+          headerRight: () => <IconButton icon="share-outline" label={m.classScreen.share} onPress={share} />,
         }}
       />
       {/* Index 1 (the tabs) sticks to the top while the content scrolls. */}
@@ -91,7 +93,7 @@ export default function ClassScreen() {
           {demo && (
             <View style={[styles.banner, { backgroundColor: theme.mediumSoft }]}>
               <Txt variant="small" color={theme.medium}>
-                Demo mode: the server has no AI key, so this is a fixed example and not based on your recording.
+                {m.classScreen.demo}
               </Txt>
             </View>
           )}
@@ -122,7 +124,7 @@ export default function ClassScreen() {
           {tab === "summary" && (
             <Card>
               <Txt variant="caption" style={styles.summaryLabel}>
-                In short
+                {m.classScreen.inShort}
               </Txt>
               <Txt style={styles.summary}>{pack.summary}</Txt>
             </Card>

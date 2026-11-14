@@ -4,14 +4,13 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PLANS, formatMinutes, nextMonthStart } from "@shared/plans";
 import { SAMPLE_TRANSCRIPT } from "@shared/sample";
 import type { NotesResponse } from "@shared/schema";
 import { AccountButton } from "@/components/AccountButton";
 import { HistoryList } from "@/components/HistoryList";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { PlanUsage } from "@/components/PlanUsage";
-import { ProcessingCard, TRANSCRIPT_STEPS, type ProcessingStep } from "@/components/ProcessingCard";
+import { ProcessingCard, transcriptSteps, type ProcessingStep } from "@/components/ProcessingCard";
 import { RecorderPanel } from "@/components/record/RecorderPanel";
 import { ServerStatusBanner } from "@/components/ServerStatusBanner";
 import { Button, IconBubble, IconButton, Txt } from "@/components/ui";
@@ -26,25 +25,28 @@ import { classStore } from "@/lib/classStore";
 import { confirmAction, confirmDestructive } from "@/lib/confirm";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { sendQueue } from "@/lib/sendQueue";
+import { useT, type Messages } from "@/i18n";
+import { formatLength, planName, resetDate } from "@/i18n/format";
 import { radius, spacing, useTheme } from "@/lib/theme";
 
 function newClassId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function greeting(now = new Date()): string {
+function greeting(m: Messages, now = new Date()): string {
   const hour = now.getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return m.home.greeting.morning;
+  if (hour < 18) return m.home.greeting.afternoon;
+  return m.home.greeting.evening;
 }
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const m = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const plan = usePlan();
-  const planName = plan.status ? PLANS[plan.status.plan].name : undefined;
+  const currentPlanName = plan.status ? planName(plan.status.plan, m) : undefined;
   // The plan's longest class; the recording stops there by itself.
   const recorder = useClassRecorder(plan.status ? plan.status.maxRecordingMinutes * 60 : undefined);
   const history = useClassHistory();
@@ -68,7 +70,7 @@ export default function HomeScreen() {
       router.push({ pathname: "/class/[id]", params: { id: saved.id } });
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : m.common.somethingWrong);
       server.retry();
       return false;
     } finally {
@@ -92,7 +94,7 @@ export default function HomeScreen() {
       language,
     });
     recorder.release();
-    setNotice("Your notes are being written. You can close the app: we will tell you when they are ready.");
+    setNotice(m.home.sentNotice);
   }
 
   /** Starts recording, unless the month's classes are used up: then explains and offers the plans. */
@@ -101,15 +103,16 @@ export default function HomeScreen() {
       recorder.start();
       return;
     }
-    const resets = nextMonthStart().toLocaleDateString(undefined, { day: "numeric", month: "long" });
+    const resets = resetDate();
     const isPro = plan.status.plan === "pro";
+    const limit = plan.status.classesPerMonth;
     confirmAction({
-      title: "No classes left this month",
+      title: m.home.noClassesLeftTitle,
       message: isPro
-        ? `You have used your ${plan.status.classesPerMonth} classes this month. They come back on ${resets}.`
-        : `You have used your ${plan.status.classesPerMonth} ${planName} classes this month. Upgrade to record more, or wait until ${resets}.`,
-      confirmLabel: isPro ? "OK" : "See plans",
-      cancelLabel: "Not now",
+        ? m.home.noClassesLeftPro(limit, resets)
+        : m.home.noClassesLeft(limit, currentPlanName ?? "", resets),
+      confirmLabel: isPro ? m.common.ok : m.home.seePlans,
+      cancelLabel: m.common.notNow,
       onConfirm: () => {
         if (!isPro) router.push("/plans");
       },
@@ -117,26 +120,22 @@ export default function HomeScreen() {
   }
 
   function tryExample() {
-    createNotes(TRANSCRIPT_STEPS, () => requestStudyPackFromTranscript(SAMPLE_TRANSCRIPT, language));
+    createNotes(transcriptSteps(m), () => requestStudyPackFromTranscript(SAMPLE_TRANSCRIPT, language));
   }
 
   function confirmDiscard() {
     confirmDestructive({
-      title: "Discard this recording?",
-      message: "The audio will be deleted and cannot be recovered.",
-      confirmLabel: "Discard",
-      cancelLabel: "Keep it",
+      title: m.home.discardTitle,
+      message: m.home.discardMessage,
+      confirmLabel: m.home.discardConfirm,
+      cancelLabel: m.home.keepIt,
       onConfirm: recorder.discard,
     });
   }
 
   const busy = processing !== null;
   const shownError = error || recorder.error;
-  const title = busy
-    ? "Writing your notes"
-    : { idle: "Ready for class?", recording: "Listening to your class", recorded: "Your recording is ready" }[
-        recorder.phase
-      ];
+  const title = busy ? m.home.titles.busy : m.home.titles[recorder.phase];
 
   return (
     <ScrollView
@@ -154,7 +153,7 @@ export default function HomeScreen() {
       </View>
 
       <Txt variant="small" style={styles.greeting}>
-        {greeting()}
+        {greeting(m)}
       </Txt>
       <Txt variant="display" style={styles.title}>
         {title}
@@ -174,20 +173,20 @@ export default function HomeScreen() {
           <Txt variant="small" color={theme.good} style={styles.grow}>
             {notice}
           </Txt>
-          <IconButton icon="close" label="Hide this message" onPress={() => setNotice("")} color={theme.good} />
+          <IconButton icon="close" label={m.home.hideMessage} onPress={() => setNotice("")} color={theme.good} />
         </View>
       )}
 
-      <RecorderPanel recorder={recorder} disabled={busy} onStart={startRecording} planName={planName} />
+      <RecorderPanel recorder={recorder} disabled={busy} onStart={startRecording} planName={currentPlanName} />
 
       {recorder.phase === "recorded" && recorder.stoppedAtLimit && recorder.maxSeconds !== undefined && (
         <View style={[styles.notice, styles.limitNotice, { backgroundColor: theme.mediumSoft }]} accessibilityRole="alert">
           <IconBubble name="timer-outline" color={theme.medium} background={theme.card} size={32} />
           <View style={styles.grow}>
             <Txt variant="small" color={theme.medium}>
-              {`Recording stopped at ${formatMinutes(recorder.maxSeconds / 60)}, the longest class on ${planName ?? "your plan"}. Your notes will cover this part.`}
+              {m.home.stoppedAtLimit(formatLength(recorder.maxSeconds / 60, m), currentPlanName ?? m.home.yourPlan)}
             </Txt>
-            <Button kind="ghost" label="See longer plans" onPress={() => router.push("/plans")} style={styles.inlineLink} />
+            <Button kind="ghost" label={m.home.seeLongerPlans} onPress={() => router.push("/plans")} style={styles.inlineLink} />
           </View>
         </View>
       )}
@@ -195,8 +194,8 @@ export default function HomeScreen() {
       {recorder.phase === "recorded" && !busy && (
         <View style={styles.next}>
           <LanguagePicker value={language} onChange={setLanguage} />
-          <Button kind="primary" icon="sparkles" label="Create my notes" onPress={createFromRecording} />
-          <Button kind="ghost" icon="trash-outline" label="Discard recording" onPress={confirmDiscard} />
+          <Button kind="primary" icon="sparkles" label={m.home.createNotes} onPress={createFromRecording} />
+          <Button kind="ghost" icon="trash-outline" label={m.home.discardRecording} onPress={confirmDiscard} />
         </View>
       )}
 

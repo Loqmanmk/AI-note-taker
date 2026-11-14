@@ -4,18 +4,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, IconBubble, Txt, type IconName } from "@/components/ui";
+import { useT } from "@/i18n";
 import { getAuthReturnAddress, useAuth } from "@/lib/auth";
 import { openPrivacyPolicy } from "@/lib/links";
 import { fonts, radius, spacing, useTheme } from "@/lib/theme";
 
-const FEATURES: { icon: IconName; title: string; text: string }[] = [
-  { icon: "mic", title: "Record your class", text: "Your phone listens while you focus on the teacher." },
-  { icon: "flame", title: "Know what matters", text: "See what the teacher stressed most, ranked for the exam." },
-  { icon: "help-buoy", title: "Never stay lost", text: "Tap when you stop following. That part gets re-explained." },
-];
+const FEATURE_ICONS: IconName[] = ["mic", "flame", "help-buoy"];
 
 export default function SignInScreen() {
   const theme = useTheme();
+  const m = useT();
   const insets = useSafeAreaInsets();
   const { signInWithGoogle } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -27,7 +25,7 @@ export default function SignInScreen() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not sign in. Try again.");
+      setError(err instanceof Error ? err.message : m.signIn.failed);
     } finally {
       setBusy(false);
     }
@@ -46,14 +44,14 @@ export default function SignInScreen() {
         </View>
         <Text style={styles.brand}>FocusNotes</Text>
         <Text style={styles.headline} accessibilityRole="header">
-          Your classes, turned into exam-ready notes.
+          {m.signIn.headline}
         </Text>
       </LinearGradient>
 
       <View style={[styles.sheet, { backgroundColor: theme.bg, paddingBottom: insets.bottom + spacing.xl }]}>
-        {FEATURES.map((feature) => (
+        {m.signIn.features.map((feature, i) => (
           <View key={feature.title} style={styles.feature}>
-            <IconBubble name={feature.icon} color={theme.primary} background={theme.primarySoft} size={44} />
+            <IconBubble name={FEATURE_ICONS[i]} color={theme.primary} background={theme.primarySoft} size={44} />
             <View style={styles.grow}>
               <Txt variant="bodyStrong">{feature.title}</Txt>
               <Txt variant="small">{feature.text}</Txt>
@@ -63,7 +61,7 @@ export default function SignInScreen() {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Continue with Google"
+          accessibilityLabel={m.signIn.continueWithGoogle}
           accessibilityState={{ busy, disabled: busy }}
           disabled={busy}
           onPress={signIn}
@@ -73,7 +71,7 @@ export default function SignInScreen() {
           ]}
         >
           {busy ? <ActivityIndicator color={theme.ink} /> : <Ionicons name="logo-google" size={20} color={theme.ink} />}
-          <Text style={[styles.googleText, { color: theme.ink }]}>{busy ? "Opening Google…" : "Continue with Google"}</Text>
+          <Text style={[styles.googleText, { color: theme.ink }]}>{busy ? m.signIn.opening : m.signIn.continueWithGoogle}</Text>
         </Pressable>
 
         {error !== "" && (
@@ -85,9 +83,9 @@ export default function SignInScreen() {
         )}
 
         <Txt variant="small" style={styles.privacy}>
-          We use your Google name and email only to keep your classes in your account.
+          {m.signIn.privacyNote}
         </Txt>
-        <Button kind="ghost" label="Privacy policy" onPress={openPrivacyPolicy} style={styles.privacyLink} />
+        <Button kind="ghost" label={m.signIn.privacyPolicy} onPress={openPrivacyPolicy} style={styles.privacyLink} />
 
         {__DEV__ && <ReturnAddressHint />}
       </View>
