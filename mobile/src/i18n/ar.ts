@@ -36,6 +36,11 @@ export const ar: Messages = {
     today: "اليوم",
     yesterday: "أمس",
   },
+  crash: {
+    title: "حدث خطأ ما",
+    text: "واجه التطبيق مشكلة في هذه الشاشة. دروسك وتسجيلاتك في أمان.",
+    retry: "حاول مرة أخرى",
+  },
   signIn: {
     headline: "دروسك، تتحول إلى ملخصات جاهزة للامتحان.",
     features: [

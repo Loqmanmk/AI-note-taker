@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -12,14 +12,24 @@ import {
   useFonts,
 } from "@expo-google-fonts/manrope";
 import { ClassSourceSync } from "@/components/ClassSourceSync";
+import { CrashScreen } from "@/components/CrashScreen";
 import { languageStore } from "@/i18n";
 import { ensureLayoutDirection } from "@/i18n/direction";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { onNotesNotificationOpened } from "@/lib/notifications";
 import { fonts, useTheme } from "@/lib/theme";
+import { welcomeStore } from "@/lib/welcome";
 
 // Keep the splash screen up until fonts and the saved session are ready, so nothing jumps.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/** Expo Router shows this when a screen throws while drawing. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  useEffect(() => {
+    console.error("[app] a screen failed", error);
+  }, [error]);
+  return <CrashScreen onRetry={() => retry()} />;
+}
 
 export default function RootLayout() {
   return (
@@ -43,10 +53,17 @@ function RootNavigator() {
     Manrope_800ExtraBold,
   });
   const languageReady = useLanguageReady();
+  const welcomeSeen = useSyncExternalStore(welcomeStore.subscribe, welcomeStore.getSnapshot, welcomeStore.getSnapshot);
   // If the fonts fail to load, carry on with the system font rather than blocking the app.
-  const ready = (fontsLoaded || Boolean(fontError)) && !auth.isLoading && languageReady;
+  const ready = (fontsLoaded || Boolean(fontError)) && !auth.isLoading && languageReady && welcomeSeen !== null;
   // Without accounts set up, the app is open; otherwise a session is required.
   const signedIn = !auth.enabled || auth.session !== null;
+  // Students already signed in skip the welcome, for example after updating the app.
+  const showWelcome = !signedIn && welcomeSeen === false;
+
+  useEffect(() => {
+    welcomeStore.load();
+  }, []);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
@@ -78,8 +95,11 @@ function RootNavigator() {
           <Stack.Screen name="class/[id]" options={{ title: "" }} />
           <Stack.Screen name="plans" options={{ title: "" }} />
         </Stack.Protected>
-        <Stack.Protected guard={!signedIn}>
-          <Stack.Screen name="sign-in" options={{ headerShown: false, title: "Sign in" }} />
+        <Stack.Protected guard={showWelcome}>
+          <Stack.Screen name="welcome" options={{ headerShown: false, title: "FocusNotes" }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn && !showWelcome}>
+          <Stack.Screen name="sign-in" options={{ headerShown: false, title: "FocusNotes" }} />
         </Stack.Protected>
       </Stack>
     </>

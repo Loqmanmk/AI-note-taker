@@ -16,6 +16,11 @@ export const fr: Messages = {
     today: "Aujourd’hui",
     yesterday: "Hier",
   },
+  crash: {
+    title: "Un problème est survenu",
+    text: "L’application a rencontré un problème sur cet écran. Vos cours et enregistrements sont en sécurité.",
+    retry: "Réessayer",
+  },
   signIn: {
     headline: "Vos cours, transformés en fiches prêtes pour l’examen.",
     features: [

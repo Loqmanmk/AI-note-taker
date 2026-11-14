@@ -14,6 +14,11 @@ export const en = {
     today: "Today",
     yesterday: "Yesterday",
   },
+  crash: {
+    title: "Something went wrong",
+    text: "The app hit a problem on this screen. Your classes and recordings are safe.",
+    retry: "Try again",
+  },
   signIn: {
     headline: "Your classes, turned into exam-ready notes.",
     features: [
