@@ -4,13 +4,15 @@ Before publishing, Google Play asks for links and declarations about your app. T
 
 ## 1. Fill in your details first
 
-Open [`lib/legal.ts`](../lib/legal.ts) and replace the three placeholders:
+The privacy policy shows who runs the app and how to contact you. These details are not in the code: add them in Vercel, under your project → **Settings → Environment Variables**:
 
-- `owner`: your name, or your company's
-- `contactEmail`: an address where students can reach you about their data
-- `country`: your country (Morocco: law 09-08)
+| Name | Example |
+|---|---|
+| `NEXT_PUBLIC_LEGAL_OWNER` | `FocusNotes` or your name |
+| `NEXT_PUBLIC_LEGAL_CONTACT_EMAIL` | an address made for the app, such as `focusnotes.app@gmail.com` |
+| `NEXT_PUBLIC_LEGAL_COUNTRY` | `Morocco` |
 
-Push the change: the privacy policy and account deletion pages update on your website.
+Then **Deployments → ⋯ on the latest → Redeploy**, so the pages show them. These details are public on the website, as Google Play requires; use an email made for the app rather than your personal one.
 
 ## 2. Links Google Play asks for
 
