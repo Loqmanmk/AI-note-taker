@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ar } from "../mobile/src/i18n/ar";
-import { en } from "../mobile/src/i18n/en";
-import { fr } from "../mobile/src/i18n/fr";
+import { ar } from "../src/i18n/ar";
+import { en } from "../src/i18n/en";
+import { fr } from "../src/i18n/fr";
 
 /** Every path to a text, with "()" marking texts that take values. */
 function shape(value: unknown, path = ""): string[] {

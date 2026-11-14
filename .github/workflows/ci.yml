@@ -42,3 +42,5 @@ jobs:
         working-directory: mobile
       - run: npm run typecheck
         working-directory: mobile
+      - run: npm test
+        working-directory: mobile
