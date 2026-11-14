@@ -42,5 +42,7 @@ jobs:
         working-directory: mobile
       - run: npm run typecheck
         working-directory: mobile
-      - run: npm test
+      # Called directly, not as a package.json script: scripts are part of the app's fingerprint,
+      # and changing them would stop over-the-air updates from reaching installed apps.
+      - run: node ../node_modules/vitest/vitest.mjs run
         working-directory: mobile

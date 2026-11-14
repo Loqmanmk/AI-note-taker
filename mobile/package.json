@@ -46,8 +46,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "start:ip": "expo start",
-    "test": "node ../node_modules/vitest/vitest.mjs run"
+    "start:ip": "expo start"
   },
   "private": true
 }
