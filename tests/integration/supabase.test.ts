@@ -13,6 +13,7 @@ import { SupabaseRecordingStore } from "../../lib/server/recordingStore";
 import { RECORDINGS_BUCKET, recordingPath } from "../../lib/recordings";
 import { CLASS_USAGE_TABLE, SUBSCRIPTIONS_TABLE, readPlanStatus } from "../../lib/planStatus";
 import { SupabasePlanRepository } from "../../lib/server/planRepository";
+import { SupabaseSubscriptionStore } from "../../lib/server/payments/supabaseSubscriptionStore";
 
 const url = process.env.SUPABASE_TEST_URL ?? "";
 const publishableKey = process.env.SUPABASE_TEST_PUBLISHABLE_KEY ?? "";
@@ -217,5 +218,44 @@ describe.skipIf(!url || !publishableKey || !secretKey)("Supabase accounts (integ
       createClient(url, publishableKey, { auth: noSession, global: { headers: { Authorization: `Bearer ${dave.user.accessToken}` } } }),
     );
     expect(fromPhone.classesUsed).toBe(2);
+  });
+
+  it("saves paid subscriptions from the payment webhook, newest first, and students still cannot change them", async () => {
+    const erin = await makeStudent("erin");
+    const store = new SupabaseSubscriptionStore(url, secretKey);
+    const plans = new SupabasePlanRepository(config);
+    const base = {
+      userId: erin.user.id,
+      provider: "paddle" as const,
+      customerId: "ctm_test",
+      subscriptionId: "sub_test",
+    };
+
+    expect(
+      await store.apply({ ...base, plan: "pro", status: "active", expiresAt: "2999-01-01T00:00:00Z", changedAt: "2026-11-15T10:00:00Z" }),
+    ).toBe(true);
+    expect((await plans.status(erin.user)).plan).toBe("pro");
+    expect(await store.findForUser(erin.user.id)).toEqual({ customerId: "ctm_test", subscriptionId: "sub_test" });
+
+    // A late, older notification does not undo it.
+    expect(
+      await store.apply({ ...base, plan: "pro", status: "canceled", expiresAt: "2026-11-01T00:00:00Z", changedAt: "2026-11-14T10:00:00Z" }),
+    ).toBe(false);
+    expect((await plans.status(erin.user)).plan).toBe("pro");
+
+    // The student cannot rewrite the payment columns themselves.
+    await erin.client
+      .from(SUBSCRIPTIONS_TABLE)
+      .update({ expires_at: "3000-01-01T00:00:00Z", plan: "pro" })
+      .eq("user_id", erin.user.id)
+      .setHeader("Authorization", `Bearer ${erin.user.accessToken}`);
+    const row = await admin.from(SUBSCRIPTIONS_TABLE).select("expires_at").eq("user_id", erin.user.id).single();
+    expect(row.data?.expires_at).toBe("2999-01-01T00:00:00+00:00");
+
+    // A newer cancellation ends the plan.
+    expect(
+      await store.apply({ ...base, plan: "pro", status: "canceled", expiresAt: "2026-01-01T00:00:00Z", changedAt: "2026-11-16T00:00:00Z" }),
+    ).toBe(true);
+    expect((await plans.status(erin.user)).plan).toBe("free");
   });
 });

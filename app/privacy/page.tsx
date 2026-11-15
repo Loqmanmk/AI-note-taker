@@ -34,7 +34,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Your plan and how many classes you sent this month</strong>, with their length, to apply your
-          plan&apos;s limits. When paid plans open, payments are handled by Google Play: we never see your card.
+          plan&apos;s limits. Payments are handled by our payment provider: we never see your card.
         </li>
         <li>
           <strong>Error reports</strong> when the app crashes or hits an error: what went wrong, your phone model,
@@ -74,6 +74,11 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Sentry</strong>: receiving the app&apos;s error reports, so we can fix crashes.
+        </li>
+        <li>
+          <strong>Paddle</strong>: selling paid plans on our website, as our reseller. Paddle receives your payment
+          details and email address to process payments, taxes and refunds; we never see your card. We only receive
+          your plan, its status and its end date.
         </li>
         <li>
           <strong>Google Sign-In</strong>: confirming your identity when you sign in.

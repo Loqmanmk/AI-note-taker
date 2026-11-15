@@ -13,14 +13,22 @@ function originOf(url: string | undefined): string | undefined {
 }
 const supabaseOrigin = originOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
+/** Paddle's checkout: its script, the payment window it opens, and the services they call. */
+const paddle = {
+  script: "https://cdn.paddle.com https://public.profitwell.com",
+  frame: "https://buy.paddle.com https://sandbox-buy.paddle.com",
+  connect: "https://*.paddle.com",
+};
+
 // Next.js injects small inline scripts, and its dev server needs eval for hot reload.
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  `script-src 'self' 'unsafe-inline' ${paddle.script}${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline' https://cdn.paddle.com",
+  "img-src 'self' data: https://*.paddle.com",
   "font-src 'self'",
-  `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin}` : ""}${isDev ? " ws:" : ""}`,
+  `frame-src ${paddle.frame}`,
+  `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin}` : ""} ${paddle.connect}${isDev ? " ws:" : ""}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -32,8 +40,12 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // The app needs the microphone and nothing else.
-  { key: "Permissions-Policy", value: "microphone=(self), camera=(), geolocation=(), payment=()" },
+  // The microphone for recording; payment for Apple Pay and Google Pay in Paddle's checkout.
+  {
+    key: "Permissions-Policy",
+    value:
+      'microphone=(self), camera=(), geolocation=(), payment=(self "https://buy.paddle.com" "https://sandbox-buy.paddle.com")',
+  },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 

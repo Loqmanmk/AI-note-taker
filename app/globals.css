@@ -112,6 +112,8 @@ body {
 .logo {
   font-weight: 500;
   letter-spacing: -0.01em;
+  color: inherit;
+  text-decoration: none;
 }
 .logo b {
   color: var(--accent);
@@ -524,4 +526,86 @@ dd {
   padding-top: 16px;
   border-top: 1px solid var(--line);
   font-size: 0.9rem;
+}
+
+/* ---------- Pricing ---------- */
+.pricing .billing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--line);
+  margin: 8px 0 20px;
+}
+.pricing .billing button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.pricing .billing button.on {
+  background: var(--card);
+  color: var(--ink);
+}
+.pricing .plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+.pricing .plan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pricing .plan.featured {
+  border: 2px solid var(--accent);
+}
+.pricing .plan-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pricing .plan h2 {
+  margin: 0;
+}
+.pricing .price {
+  font-size: 30px;
+  font-weight: 800;
+  margin: 0;
+}
+.pricing .price span {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pricing .plan ul {
+  flex: 1;
+}
+.pricing .badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+.pricing .badge.good {
+  background: color-mix(in srgb, var(--good) 15%, transparent);
+  color: var(--good);
+}
+.pricing .signin-box {
+  margin-top: 20px;
+}
+.pricing .status {
+  font-weight: 600;
+  color: var(--good);
+}
+.pricing .small {
+  font-size: 13px;
+  margin-top: 28px;
 }
