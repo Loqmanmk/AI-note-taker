@@ -12,7 +12,7 @@ import {
 } from "@/lib/client/paddle";
 import { getSupabase } from "@/lib/client/supabase";
 import { LEGAL, PRIVACY_PATH, REFUND_PATH, TERMS_PATH } from "@/lib/legal";
-import { readPlanStatus } from "@/lib/planStatus";
+import { SUBSCRIPTIONS_TABLE, readPlanStatus } from "@/lib/planStatus";
 import {
   PLANS,
   PLAN_ORDER,
@@ -25,6 +25,17 @@ import { readPaddlePublicConfig } from "@/lib/paymentsConfig";
 
 const paddleConfig = readPaddlePublicConfig();
 const RANK: Record<PlanId, number> = { free: 0, premium: 1, pro: 2 };
+
+type Supabase = NonNullable<ReturnType<typeof getSupabase>>;
+
+/** The plan and whether it was bought on Paddle (plans given by hand cannot be managed there). */
+async function readAccountPlan(supabase: Supabase): Promise<{ status: PlanStatus; onPaddle: boolean }> {
+  const [status, row] = await Promise.all([
+    readPlanStatus(supabase),
+    supabase.from(SUBSCRIPTIONS_TABLE).select("provider").maybeSingle(),
+  ]);
+  return { status, onPaddle: row.data?.provider === "paddle" };
+}
 
 function lengthLabel(minutes: number) {
   return minutes % 60 === 0
@@ -64,6 +75,7 @@ export default function PricingPage() {
   const auth = useAuth();
   const [billing, setBilling] = useState<Billing>("monthly");
   const [status, setStatus] = useState<PlanStatus | null>(null);
+  const [onPaddle, setOnPaddle] = useState(false);
   const [paddleReady, setPaddleReady] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [message, setMessage] = useState("");
@@ -73,9 +85,10 @@ export default function PricingPage() {
     const supabase = getSupabase();
     if (!supabase || !auth.session) return null;
     try {
-      const next = await readPlanStatus(supabase);
-      setStatus(next);
-      return next;
+      const next = await readAccountPlan(supabase);
+      setStatus(next.status);
+      setOnPaddle(next.onPaddle);
+      return next.status;
     } catch {
       return null;
     }
@@ -86,9 +99,11 @@ export default function PricingPage() {
     const supabase = getSupabase();
     if (!supabase || !auth.session) return;
     let active = true;
-    readPlanStatus(supabase)
+    readAccountPlan(supabase)
       .then((next) => {
-        if (active) setStatus(next);
+        if (!active) return;
+        setStatus(next.status);
+        setOnPaddle(next.onPaddle);
       })
       .catch(() => {});
     return () => {
@@ -261,7 +276,7 @@ export default function PricingPage() {
         </div>
       )}
 
-      {signedIn && current !== "free" && paddleConfig && (
+      {signedIn && current !== "free" && onPaddle && paddleConfig && (
         <p>
           <button type="button" className="btn" onClick={manage}>
             Manage my subscription
