@@ -135,8 +135,9 @@ export class PlanChangeError extends Error {}
 
 /**
  * Moves an existing subscription to another price (for example Premium → Pro). The student is
- * charged or credited the difference for the rest of the period right away, and a pending
- * cancellation is removed, since switching plan means they want to stay.
+ * charged or credited the difference for the rest of the period right away. A pending
+ * cancellation is removed first, since switching plan means they want to stay; Paddle does not
+ * change items while a change is scheduled.
  */
 export async function changePaddleSubscriptionPrice(
   apiKey: string,
@@ -148,36 +149,44 @@ export async function changePaddleSubscriptionPrice(
     environment === "production"
       ? "https://api.paddle.com"
       : "https://sandbox-api.paddle.com";
-  const res = await fetch(
-    `${base}/subscriptions/${encodeURIComponent(subscriptionId)}`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        items: [{ price_id: priceId, quantity: 1 }],
-        proration_billing_mode: "prorated_immediately",
-        scheduled_change: null,
-      }),
+  const url = `${base}/subscriptions/${encodeURIComponent(subscriptionId)}`;
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+  const call = async (method: "GET" | "PATCH", body?: unknown) => {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(30_000),
-    },
-  );
-  if (res.ok) return;
-  const body = (await res.json().catch(() => null)) as {
-    error?: { code?: string; detail?: string };
-  } | null;
-  console.error(
-    `[payments] plan change refused: ${res.status} ${body?.error?.code ?? ""} ${body?.error?.detail ?? ""}`,
-  );
-  if (
-    body?.error?.code === "subscription_update_when_past_due" ||
-    res.status === 422
-  ) {
-    throw new PlanChangeError(
-      "Your last payment did not go through. Update your card in “Manage my subscription” first.",
-    );
-  }
-  throw new Error(`Paddle plan change failed: ${res.status}`);
+    });
+    const json = (await res.json().catch(() => null)) as {
+      data?: { scheduled_change?: unknown };
+      error?: { code?: string; detail?: string };
+    } | null;
+    if (!res.ok) {
+      const code = json?.error?.code ?? `http_${res.status}`;
+      console.error(
+        `[payments] Paddle ${method} subscription refused: ${res.status} ${code} ${json?.error?.detail ?? ""}`,
+      );
+      if (code === "subscription_update_when_past_due") {
+        throw new PlanChangeError(
+          "Your last payment did not go through. Update your card in “Manage my subscription” first.",
+        );
+      }
+      throw new PlanChangeError(
+        `Paddle refused the change (${code}). Try again, or use “Manage my subscription”.`,
+      );
+    }
+    return json;
+  };
+
+  const current = await call("GET");
+  if (current?.data?.scheduled_change)
+    await call("PATCH", { scheduled_change: null });
+  await call("PATCH", {
+    items: [{ price_id: priceId, quantity: 1 }],
+    proration_billing_mode: "prorated_immediately",
+  });
 }
