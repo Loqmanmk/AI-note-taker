@@ -32,6 +32,7 @@ export const PADDLE_SCRIPT_URL = "https://cdn.paddle.com/paddle/v2/paddle.js";
 
 let initialized = false;
 let onCompleted: (() => void) | undefined;
+let onClosed: (() => void) | undefined;
 
 /** Sets Paddle up once, after its script has loaded. Returns false if the script is not there. */
 export function initPaddle(config: PaddlePublicConfig): boolean {
@@ -43,6 +44,7 @@ export function initPaddle(config: PaddlePublicConfig): boolean {
       token: config.clientToken,
       eventCallback: (event) => {
         if (event.name === "checkout.completed") onCompleted?.();
+        if (event.name === "checkout.closed") onClosed?.();
       },
     });
     initialized = true;
@@ -57,9 +59,10 @@ export function initPaddle(config: PaddlePublicConfig): boolean {
 export function openCheckout(
   priceId: string,
   user: { id: string; email?: string },
-  completed: () => void,
+  handlers: { completed: () => void; closed: () => void },
 ) {
-  onCompleted = completed;
+  onCompleted = handlers.completed;
+  onClosed = handlers.closed;
   window.Paddle?.Checkout.open({
     items: [{ priceId, quantity: 1 }],
     customer: user.email ? { email: user.email } : undefined,

@@ -113,6 +113,15 @@ export default function PricingPage() {
     };
   }, [auth.session]);
 
+  // Coming back to the tab (for example from "Manage my subscription") shows the current plan.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refresh]);
+
   /** After paying, Paddle tells our server within seconds: check until the new plan shows. */
   async function waitForUpgrade(from: PlanId) {
     setWaiting(true);
@@ -141,8 +150,10 @@ export default function PricingPage() {
     openCheckout(
       paddleConfig.prices[id][billing],
       { id: auth.session.user.id, email: auth.session.user.email },
-      () => {
-        waitForUpgrade(from);
+      {
+        completed: () => waitForUpgrade(from),
+        // The plan may have changed even if the "completed" signal was missed.
+        closed: () => refresh(),
       },
     );
   }
