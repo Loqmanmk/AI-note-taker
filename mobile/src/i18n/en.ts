@@ -19,6 +19,12 @@ export const en = {
     text: "The app hit a problem on this screen. Your classes and recordings are safe.",
     retry: "Try again",
   },
+  diagnostics: {
+    title: "Error reports",
+    sent: "A test report was sent. It appears in Sentry within a minute.",
+    off: "Error reports are off in this version of the app (no Sentry DSN at build time, or development mode).",
+    failed: "The test report could not be sent. Check your internet connection and try again.",
+  },
   signIn: {
     headline: "Your classes, turned into exam-ready notes.",
     features: [

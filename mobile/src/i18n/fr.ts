@@ -21,6 +21,12 @@ export const fr: Messages = {
     text: "L’application a rencontré un problème sur cet écran. Vos cours et enregistrements sont en sécurité.",
     retry: "Réessayer",
   },
+  diagnostics: {
+    title: "Rapports d’erreurs",
+    sent: "Un rapport de test a été envoyé. Il apparaît dans Sentry en moins d’une minute.",
+    off: "Les rapports d’erreurs sont désactivés dans cette version (pas de DSN Sentry au moment du build, ou mode développement).",
+    failed: "Le rapport de test n’a pas pu être envoyé. Vérifiez votre connexion internet et réessayez.",
+  },
   signIn: {
     headline: "Vos cours, transformés en fiches prêtes pour l’examen.",
     features: [

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,7 +22,8 @@ import { useSendQueue } from "@/hooks/useSendQueue";
 import { useServerStatus } from "@/hooks/useServerStatus";
 import { requestStudyPackFromTranscript } from "@/lib/api";
 import { classStore } from "@/lib/classStore";
-import { confirmAction, confirmDestructive } from "@/lib/confirm";
+import { confirmAction, confirmDestructive, showMessage } from "@/lib/confirm";
+import { sendTestReport } from "@/lib/errorTracking";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { sendQueue } from "@/lib/sendQueue";
 import { useT, type Messages } from "@/i18n";
@@ -119,6 +120,11 @@ export default function HomeScreen() {
     });
   }
 
+  async function testErrorReports() {
+    const result = await sendTestReport();
+    showMessage(m.diagnostics.title, m.diagnostics[result]);
+  }
+
   function tryExample() {
     createNotes(transcriptSteps(m), () => requestStudyPackFromTranscript(SAMPLE_TRANSCRIPT, language));
   }
@@ -146,9 +152,12 @@ export default function HomeScreen() {
         <LinearGradient colors={[theme.gradient[0], theme.gradient[1]]} style={styles.logo}>
           <Ionicons name="sparkles" size={18} color="#FFFFFF" />
         </LinearGradient>
-        <Txt variant="label" tone="muted" style={styles.grow}>
-          FocusNotes
-        </Txt>
+        {/* A long press sends a test error report: a quick check for the team, invisible to students. */}
+        <Pressable onLongPress={testErrorReports} delayLongPress={1500} style={styles.grow}>
+          <Txt variant="label" tone="muted">
+            FocusNotes
+          </Txt>
+        </Pressable>
         <AccountButton />
       </View>
 

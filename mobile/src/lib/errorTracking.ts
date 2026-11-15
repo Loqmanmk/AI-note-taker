@@ -43,6 +43,16 @@ export function setErrorTrackingUser(userId: string | null) {
   if (enabled) Sentry.setUser(userId ? { id: userId } : null);
 }
 
+/**
+ * Sends a test report, to check that reports reach Sentry from an installed app.
+ * Resolves with "off" when this build has no DSN (or runs in development), "sent" or "failed".
+ */
+export async function sendTestReport(): Promise<"sent" | "off" | "failed"> {
+  if (!enabled) return "off";
+  Sentry.captureMessage("Test report from FocusNotes", "info");
+  return (await Sentry.flush()) ? "sent" : "failed";
+}
+
 export function reportError(error: unknown) {
   if (enabled) Sentry.captureException(error);
 }
