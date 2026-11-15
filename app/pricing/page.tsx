@@ -29,7 +29,9 @@ const RANK: Record<PlanId, number> = { free: 0, premium: 1, pro: 2 };
 type Supabase = NonNullable<ReturnType<typeof getSupabase>>;
 
 /** The plan and whether it was bought on Paddle (plans given by hand cannot be managed there). */
-async function readAccountPlan(supabase: Supabase): Promise<{ status: PlanStatus; onPaddle: boolean }> {
+async function readAccountPlan(
+  supabase: Supabase,
+): Promise<{ status: PlanStatus; onPaddle: boolean }> {
   const [status, row] = await Promise.all([
     readPlanStatus(supabase),
     supabase.from(SUBSCRIPTIONS_TABLE).select("provider").maybeSingle(),
