@@ -194,3 +194,35 @@ describe("applying changes in any order", () => {
     ).toBe(true);
   });
 });
+
+describe("switching a Paddle subscription", () => {
+  it("replaces the price, bills the difference now and keeps the subscription", async () => {
+    const { changePaddleSubscriptionPrice } =
+      await import("../lib/server/payments/paddle");
+    const calls: { url: string; init: RequestInit }[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      await changePaddleSubscriptionPrice(
+        "key",
+        "sandbox",
+        "sub_1",
+        "pri_pro_m",
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    expect(calls[0].url).toBe(
+      "https://sandbox-api.paddle.com/subscriptions/sub_1",
+    );
+    expect(calls[0].init.method).toBe("PATCH");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({
+      items: [{ price_id: "pri_pro_m", quantity: 1 }],
+      proration_billing_mode: "prorated_immediately",
+      scheduled_change: null,
+    });
+  });
+});

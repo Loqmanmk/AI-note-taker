@@ -129,3 +129,55 @@ export async function createPaddlePortalUrl(
   if (!url) throw new Error("Paddle portal session had no link");
   return url;
 }
+
+/** Thrown when Paddle refuses a plan change; the message is safe to show. */
+export class PlanChangeError extends Error {}
+
+/**
+ * Moves an existing subscription to another price (for example Premium → Pro). The student is
+ * charged or credited the difference for the rest of the period right away, and a pending
+ * cancellation is removed, since switching plan means they want to stay.
+ */
+export async function changePaddleSubscriptionPrice(
+  apiKey: string,
+  environment: PaddlePublicConfig["environment"],
+  subscriptionId: string,
+  priceId: string,
+): Promise<void> {
+  const base =
+    environment === "production"
+      ? "https://api.paddle.com"
+      : "https://sandbox-api.paddle.com";
+  const res = await fetch(
+    `${base}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity: 1 }],
+        proration_billing_mode: "prorated_immediately",
+        scheduled_change: null,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  if (res.ok) return;
+  const body = (await res.json().catch(() => null)) as {
+    error?: { code?: string; detail?: string };
+  } | null;
+  console.error(
+    `[payments] plan change refused: ${res.status} ${body?.error?.code ?? ""} ${body?.error?.detail ?? ""}`,
+  );
+  if (
+    body?.error?.code === "subscription_update_when_past_due" ||
+    res.status === 422
+  ) {
+    throw new PlanChangeError(
+      "Your last payment did not go through. Update your card in “Manage my subscription” first.",
+    );
+  }
+  throw new Error(`Paddle plan change failed: ${res.status}`);
+}

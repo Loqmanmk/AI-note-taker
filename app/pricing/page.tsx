@@ -123,13 +123,13 @@ export default function PricingPage() {
   }, [refresh]);
 
   /** After paying, Paddle tells our server within seconds: check until the new plan shows. */
-  async function waitForUpgrade(from: PlanId) {
+  async function waitForPlan(target: PlanId, waitingMessage: string) {
     setWaiting(true);
-    setMessage("Payment received. Activating your plan…");
+    setMessage(waitingMessage);
     for (let i = 0; i < 30; i++) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const next = await refresh();
-      if (next && RANK[next.plan] > RANK[from]) {
+      if (next && next.plan === target) {
         setMessage(
           `You are on ${PLANS[next.plan].name}. Open the app: your new limits apply right away.`,
         );
@@ -143,19 +143,56 @@ export default function PricingPage() {
     setWaiting(false);
   }
 
+  /** A student already paying on Paddle switches their subscription; anyone else opens a checkout. */
   function buy(id: Exclude<PlanId, "free">) {
     if (!paddleConfig || !auth.session) return;
     setError("");
-    const from = status?.plan ?? "free";
+    if (onPaddle) {
+      switchPlan(id);
+      return;
+    }
     openCheckout(
       paddleConfig.prices[id][billing],
       { id: auth.session.user.id, email: auth.session.user.email },
       {
-        completed: () => waitForUpgrade(from),
+        completed: () =>
+          waitForPlan(id, "Payment received. Activating your plan…"),
         // The plan may have changed even if the "completed" signal was missed.
         closed: () => refresh(),
       },
     );
+  }
+
+  async function switchPlan(id: Exclude<PlanId, "free">) {
+    const upgrade = RANK[id] > RANK[current];
+    const confirmed = window.confirm(
+      upgrade
+        ? `Switch to ${PLANS[id].name}? You pay the difference for the rest of your current period now, with the card on your subscription.`
+        : `Switch to ${PLANS[id].name}? The unused part of your current plan is credited to your next payments.`,
+    );
+    if (!confirmed) return;
+    const token = (await getSupabase()?.auth.getSession())?.data.session
+      ?.access_token;
+    if (!token) return;
+    setWaiting(true);
+    try {
+      const res = await fetch("/api/payments/change-plan", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ plan: id, billing }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? "Could not change your plan.");
+      await waitForPlan(id, `Switching to ${PLANS[id].name}…`);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not change your plan.",
+      );
+      setWaiting(false);
+    }
   }
 
   async function manage() {
@@ -227,7 +264,11 @@ export default function PricingPage() {
       <div className="plans">
         {PLAN_ORDER.map((id) => {
           const isCurrent = signedIn && id === current;
-          const canBuy = id !== "free" && RANK[id] > RANK[current];
+          // Paying students can move up or down; others can only buy a higher plan.
+          const canBuy =
+            id !== "free" &&
+            id !== current &&
+            (onPaddle || RANK[id] > RANK[current]);
           return (
             <section
               key={id}

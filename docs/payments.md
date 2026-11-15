@@ -7,7 +7,8 @@ Students pay for Premium or Pro on the website's **Plans** page (`/pricing`). Pa
 1. A signed-in student picks a plan on `/pricing`. Paddle's payment window opens with their account id attached.
 2. After payment, Paddle calls `/api/payments/paddle` (a "notification"). The server checks Paddle's signature, then saves the plan and its end date in `subscriptions` with the Supabase secret key. Renewals, plan changes and cancellations arrive the same way.
 3. The plan lasts until the end of the paid period plus 2 days, so a renewal has time to arrive. A canceled subscription keeps the plan until the end of the period; Paddle then sends the cancellation and the plan ends.
-4. "Manage my subscription" opens Paddle's page to cancel, switch plan or change the card.
+4. A student who already pays and picks another plan on `/pricing` is switched through `/api/payments/change-plan` (Paddle charges or credits the difference right away); a second subscription is never opened. This needs the API key's **subscription write** permission.
+5. "Manage my subscription" opens Paddle's page to cancel or change the card. A cancellation takes effect at the end of the paid period: the student keeps the plan until then. To test an immediate cancellation in the sandbox: Paddle → Subscriptions → the subscription → Cancel → **Immediately**.
 
 Code: `lib/paymentsConfig.ts`, `lib/server/payments/`, `app/api/payments/`, `app/pricing/page.tsx`.
 
