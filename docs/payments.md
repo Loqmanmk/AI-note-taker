@@ -32,3 +32,17 @@ The notification destination in Paddle: URL `https://<your site>/api/payments/pa
 ## Testing with fake cards
 
 In the sandbox, pay with card `4242 4242 4242 4242`, any future date, any CVC. Check the plan in Supabase → Table Editor → `subscriptions`, and in the app.
+
+## Refunds
+
+The refund policy (`/refund`) promises a refund within 14 days of a first payment, once per customer, unless the plan was heavily used. When a student asks:
+
+1. Check the date of the first payment in Paddle → **Transactions**, and the student's usage in Supabase → `class_usage`.
+2. In Paddle, open the transaction → **Refund** (full amount).
+3. In Paddle, open the subscription → **Cancel subscription** → **immediately**. A refund alone does not end the subscription; canceling sends the notification that puts the student back on Free.
+
+## Before Paddle approves the website
+
+Paddle reviews the site (Paddle → Settings → Website approval). It must show a description of the product, the plans and prices (`/pricing`), and the terms (`/terms`), refund policy (`/refund`) and privacy policy (`/privacy`), all linked from the footer. The terms must name who runs the app: set `NEXT_PUBLIC_LEGAL_OWNER` in Vercel to your legal name (for an individual seller), with `NEXT_PUBLIC_LEGAL_CONTACT_EMAIL` and `NEXT_PUBLIC_LEGAL_COUNTRY`.
+
+The terms and refund policy are a careful starting point, not legal advice: have them read by a lawyer before selling at scale.

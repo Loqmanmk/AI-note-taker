@@ -609,3 +609,32 @@ dd {
   font-size: 13px;
   margin-top: 28px;
 }
+
+/* ---------- Footer and home description ---------- */
+.site-footer {
+  max-width: 720px;
+  margin: 40px auto 0;
+  padding: 20px 16px 32px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.site-footer a {
+  color: var(--muted);
+}
+.site-footer p {
+  margin: 12px 0 0;
+}
+.signin .lead {
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.top a.logo {
+  color: var(--ink);
+  text-decoration: none;
+}

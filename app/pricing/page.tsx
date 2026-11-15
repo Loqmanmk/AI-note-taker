@@ -11,7 +11,7 @@ import {
   openCheckout,
 } from "@/lib/client/paddle";
 import { getSupabase } from "@/lib/client/supabase";
-import { PRIVACY_PATH } from "@/lib/legal";
+import { LEGAL, PRIVACY_PATH, REFUND_PATH, TERMS_PATH } from "@/lib/legal";
 import { readPlanStatus } from "@/lib/planStatus";
 import {
   PLANS,
@@ -287,7 +287,10 @@ export default function PricingPage() {
         Payments are processed by Paddle, our reseller, who handles your card
         and taxes. Subscriptions renew automatically until you cancel; you keep
         your plan until the end of the period you paid for. Classes reset on the
-        1st of each month. See our{" "}
+        1st of each month. You can ask for a refund within {LEGAL.refundDays}{" "}
+        days of your first payment: see our{" "}
+        <Link href={REFUND_PATH}>refund policy</Link>,{" "}
+        <Link href={TERMS_PATH}>terms of service</Link> and{" "}
         <Link href={PRIVACY_PATH}>privacy policy</Link>.
       </p>
     </main>
