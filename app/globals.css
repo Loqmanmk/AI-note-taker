@@ -638,3 +638,12 @@ dd {
   color: var(--ink);
   text-decoration: none;
 }
+.top a.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-mark {
+  flex: none;
+  border-radius: 7px;
+}

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Logo } from "@/components/Logo";
 import { Button, IconBubble, Txt, type IconName } from "@/components/ui";
 import { useT } from "@/i18n";
 import { getAuthReturnAddress, useAuth } from "@/lib/auth";
@@ -40,7 +41,7 @@ export default function SignInScreen() {
         style={[styles.hero, { paddingTop: insets.top + spacing.xxl }]}
       >
         <View style={styles.logo}>
-          <Ionicons name="sparkles" size={30} color="#FFFFFF" />
+          <Logo size={36} />
         </View>
         <Text style={styles.brand}>FocusNotes</Text>
         <Text style={styles.headline} accessibilityRole="header">

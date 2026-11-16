@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SAMPLE_TRANSCRIPT } from "@shared/sample";
 import type { NotesResponse } from "@shared/schema";
 import { AccountButton } from "@/components/AccountButton";
 import { HistoryList } from "@/components/HistoryList";
 import { LanguagePicker } from "@/components/LanguagePicker";
+import { Logo } from "@/components/Logo";
 import { PlanUsage } from "@/components/PlanUsage";
 import { ProcessingCard, transcriptSteps, type ProcessingStep } from "@/components/ProcessingCard";
 import { RecorderPanel } from "@/components/record/RecorderPanel";
@@ -150,7 +150,7 @@ export default function HomeScreen() {
     >
       <View style={styles.brand}>
         <LinearGradient colors={[theme.gradient[0], theme.gradient[1]]} style={styles.logo}>
-          <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+          <Logo size={20} />
         </LinearGradient>
         {/* A long press sends a test error report: a quick check for the team, invisible to students. */}
         <Pressable onLongPress={testErrorReports} delayLongPress={1500} style={styles.grow}>
