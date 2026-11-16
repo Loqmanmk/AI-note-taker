@@ -81,7 +81,7 @@ export const fr: Messages = {
     noClassesLeftTitle: "Plus de cours ce mois-ci",
     noClassesLeftPro: (limit, resets) => `Vous avez utilisé vos ${limit} cours de ce mois. Ils reviennent le ${resets}.`,
     noClassesLeft: (limit, plan, resets) =>
-      `Vous avez utilisé vos ${limit} cours ${plan} de ce mois. Passez à une offre supérieure pour en enregistrer plus, ou attendez le ${resets}.`,
+      `Vous avez utilisé vos ${limit} cours ${plan} de ce mois. Ils reviennent le ${resets}.`,
     seePlans: "Voir les offres",
     stoppedAtLimit: (length, plan) =>
       `Enregistrement arrêté à ${length}, la durée maximale avec ${plan}. Vos notes couvriront cette partie.`,
@@ -193,22 +193,10 @@ export const fr: Messages = {
   },
   plans: {
     screenTitle: "Offres",
-    title: "Choisissez votre offre",
-    lead: "Toutes les offres rédigent les mêmes notes : résumé, points clés, quiz et réexplications. Les offres payantes donnent plus de cours, et des cours plus longs.",
-    monthly: "Mensuel",
-    yearly: "Annuel · 2 mois offerts",
+    title: "Offres",
+    lead: "Toutes les offres rédigent les mêmes notes : résumé, points clés, quiz et réexplications. Elles diffèrent par le nombre de cours par mois et leur durée.",
     yourPlan: "Votre offre",
-    popular: "La plus choisie",
-    perMonth: "mois",
-    perYear: "an",
-    aMonth: (mad) => `${mad} MAD par mois`,
-    noCard: "Sans carte bancaire",
-    currency: "MAD",
-    get: (plan) => `Prendre ${plan}`,
-    comingSoonTitle: (plan) => `${plan} arrive bientôt`,
-    comingSoonText: "Les paiements ouvriront quand FocusNotes sera sur Google Play. En attendant, profitez de l’offre Free.",
-    footnote:
-      "Prix en dirhams, avec les dollars pour référence. Google Play affiche le prix final dans votre devise avant le paiement. Résiliable à tout moment depuis Google Play. Les cours se renouvellent le 1er de chaque mois.",
+    footnote: "Votre offre s’applique partout où vous vous connectez avec ce compte. Les cours se renouvellent le 1er de chaque mois.",
     names: { free: "Free", premium: "Premium", pro: "Pro" },
     features: {
       classes: (n) => `${n} cours par mois`,
@@ -222,7 +210,7 @@ export const fr: Messages = {
     usageLabel: (plan, used, limit) => `Offre ${plan} : ${used} cours sur ${limit} utilisés ce mois-ci`,
     seePlans: "Voir les offres",
     resetsPro: (date) => `Vos cours reviennent le ${date}.`,
-    resets: (date) => `Changez d’offre pour plus de cours, ou attendez le ${date}.`,
+    resets: (date) => `Vos cours reviennent le ${date}.`,
   },
   classScreen: {
     missing: "Ce cours n’est plus sur ce téléphone.",

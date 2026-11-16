@@ -22,6 +22,6 @@ describe("server messages", () => {
     const fr = serverMessages("fr");
     expect(fr.tooLongForPlan("Free", formatLength(30, fr))).toContain("30 minutes");
     expect(formatLength(120, serverMessages("en"))).toBe("2 hours");
-    expect(serverMessages("en").monthlyLimit(3, "Free")).toBe("You have used your 3 Free classes this month. Upgrade to keep going.");
+    expect(serverMessages("en").monthlyLimit(3, "Free")).toBe("You have used your 3 Free classes this month. They come back on the 1st.");
   });
 });

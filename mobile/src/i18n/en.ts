@@ -80,7 +80,7 @@ export const en = {
     noClassesLeftPro: (limit: number, resets: string) =>
       `You have used your ${limit} classes this month. They come back on ${resets}.`,
     noClassesLeft: (limit: number, plan: string, resets: string) =>
-      `You have used your ${limit} ${plan} classes this month. Upgrade to record more, or wait until ${resets}.`,
+      `You have used your ${limit} ${plan} classes this month. They come back on ${resets}.`,
     seePlans: "See plans",
     stoppedAtLimit: (length: string, plan: string) =>
       `Recording stopped at ${length}, the longest class on ${plan}. Your notes will cover this part.`,
@@ -192,22 +192,10 @@ export const en = {
   },
   plans: {
     screenTitle: "Plans",
-    title: "Choose your plan",
-    lead: "Every plan writes the same notes: summary, focus topics, quiz and re-explanations. Paid plans give you more and longer classes.",
-    monthly: "Monthly",
-    yearly: "Yearly · 2 months free",
+    title: "Plans",
+    lead: "Every plan writes the same notes: summary, focus topics, quiz and re-explanations. Plans differ in how many classes you can record each month, and how long they can be.",
     yourPlan: "Your plan",
-    popular: "Most popular",
-    perMonth: "month",
-    perYear: "year",
-    aMonth: (mad: number) => `${mad} MAD a month`,
-    noCard: "No card needed",
-    currency: "MAD",
-    get: (plan: string) => `Get ${plan}`,
-    comingSoonTitle: (plan: string) => `${plan} is coming soon`,
-    comingSoonText: "Payments will open when FocusNotes is on Google Play. Until then, enjoy the Free plan.",
-    footnote:
-      "Prices in dirhams, with dollars for reference. Google Play shows the final price in your currency before you pay. Cancel anytime from Google Play. Classes reset on the 1st of each month.",
+    footnote: "Your plan applies wherever you sign in with this account. Classes reset on the 1st of each month.",
     names: { free: "Free", premium: "Premium", pro: "Pro" },
     features: {
       classes: (n: number) => `${n} classes a month`,
@@ -221,7 +209,7 @@ export const en = {
     usageLabel: (plan: string, used: number, limit: number) => `${plan} plan: ${used} of ${limit} classes used this month`,
     seePlans: "See plans",
     resetsPro: (date: string) => `Your classes come back on ${date}.`,
-    resets: (date: string) => `Upgrade for more classes, or wait until ${date}.`,
+    resets: (date: string) => `Your classes come back on ${date}.`,
   },
   classScreen: {
     missing: "This class is no longer on this phone.",

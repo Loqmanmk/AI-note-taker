@@ -101,7 +101,7 @@ export const ar: Messages = {
     noClassesLeftTitle: "لم تتبقَّ دروس هذا الشهر",
     noClassesLeftPro: (limit, resets) => `استعملت ${lessons(limit)} المتاحة لهذا الشهر. ستعود في ${resets}.`,
     noClassesLeft: (limit, plan, resets) =>
-      `استعملت ${lessons(limit)} المتاحة في ${plan} لهذا الشهر. رقِّ اشتراكك لتسجيل المزيد، أو انتظر حتى ${resets}.`,
+      `استعملت ${lessons(limit)} المتاحة في ${plan} لهذا الشهر. ستعود في ${resets}.`,
     seePlans: "عرض الاشتراكات",
     stoppedAtLimit: (length, plan) => `توقف التسجيل عند ${length}، وهي أطول مدة في ${plan}. ستغطي ملاحظاتك هذا الجزء.`,
     yourPlan: "اشتراكك",
@@ -214,22 +214,10 @@ export const ar: Messages = {
   },
   plans: {
     screenTitle: "الاشتراكات",
-    title: "اختر اشتراكك",
-    lead: "كل الاشتراكات تكتب نفس الملاحظات: الملخص والنقاط الأساسية والاختبار وإعادة الشرح. الاشتراكات المدفوعة تمنحك دروسًا أكثر وأطول.",
-    monthly: "شهري",
-    yearly: "سنوي · شهران مجانًا",
+    title: "الاشتراكات",
+    lead: "كل الاشتراكات تكتب نفس الملاحظات: الملخص والنقاط الأساسية والاختبار وإعادة الشرح. تختلف في عدد الدروس كل شهر وفي مدتها.",
     yourPlan: "اشتراكك",
-    popular: "الأكثر اختيارًا",
-    perMonth: "شهر",
-    perYear: "سنة",
-    aMonth: (mad) => `${mad} درهم في الشهر`,
-    noCard: "بدون بطاقة بنكية",
-    currency: "درهم",
-    get: (plan) => `اشترك في ${plan}`,
-    comingSoonTitle: (plan) => `${plan} قريبًا`,
-    comingSoonText: "سيُفتح الدفع عندما يصبح FocusNotes متاحًا على Google Play. حتى ذلك الحين، استمتع بالاشتراك Free.",
-    footnote:
-      "الأسعار بالدرهم، والدولار للمقارنة. يعرض Google Play السعر النهائي بعملتك قبل الدفع. يمكنك الإلغاء في أي وقت من Google Play. تتجدد الدروس في أول كل شهر.",
+    footnote: "يسري اشتراكك أينما سجّلت الدخول بهذا الحساب. تتجدد الدروس في أول كل شهر.",
     names: { free: "Free", premium: "Premium", pro: "Pro" },
     features: {
       classes: (n) => `${lessons(n)} في الشهر`,
@@ -243,7 +231,7 @@ export const ar: Messages = {
     usageLabel: (plan, used, limit) => `اشتراك ${plan}: استعملت ${used} من ${lessons(limit)} هذا الشهر`,
     seePlans: "عرض الاشتراكات",
     resetsPro: (date) => `تعود دروسك في ${date}.`,
-    resets: (date) => `رقِّ اشتراكك لدروس أكثر، أو انتظر حتى ${date}.`,
+    resets: (date) => `تعود دروسك في ${date}.`,
   },
   classScreen: {
     missing: "هذا الدرس لم يعد على هذا الهاتف.",

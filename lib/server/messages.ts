@@ -26,9 +26,9 @@ const en = {
   couldNotSave: "Could not save the class. Try again.",
   monthlyLimitPro: (limit: number) => `You have used your ${limit} classes this month. They come back on the 1st.`,
   monthlyLimit: (limit: number, plan: string) =>
-    `You have used your ${limit} ${plan} classes this month. Upgrade to keep going.`,
+    `You have used your ${limit} ${plan} classes this month. They come back on the 1st.`,
   tooLongForPlan: (plan: string, length: string) =>
-    `${plan} accepts recordings up to ${length}. Upgrade for longer classes.`,
+    `${plan} accepts recordings up to ${length}. Split the class into shorter recordings.`,
   lengths: {
     minutes: (n: number) => `${n} minutes`,
     hours: (n: number) => (n === 1 ? "1 hour" : `${n} hours`),
@@ -51,9 +51,9 @@ const fr: ServerMessages = {
   couldNotSave: "Impossible d’enregistrer le cours. Réessayez.",
   monthlyLimitPro: (limit) => `Vous avez utilisé vos ${limit} cours de ce mois. Ils reviennent le 1er.`,
   monthlyLimit: (limit, plan) =>
-    `Vous avez utilisé vos ${limit} cours ${plan} de ce mois. Passez à une offre supérieure pour continuer.`,
+    `Vous avez utilisé vos ${limit} cours ${plan} de ce mois. Ils reviennent le 1er.`,
   tooLongForPlan: (plan, length) =>
-    `${plan} accepte des enregistrements jusqu’à ${length}. Passez à une offre supérieure pour des cours plus longs.`,
+    `${plan} accepte des enregistrements jusqu’à ${length}. Coupez le cours en enregistrements plus courts.`,
   lengths: { minutes: (n) => `${n} minutes`, hours: (n) => (n === 1 ? "1 heure" : `${n} heures`) },
 };
 
@@ -70,8 +70,8 @@ const ar: ServerMessages = {
   unsupportedFormat: "صيغة الصوت هذه غير مدعومة.",
   couldNotSave: "تعذّر حفظ الدرس. حاول مرة أخرى.",
   monthlyLimitPro: (limit) => `استعملت دروسك (${limit}) لهذا الشهر. ستعود في أول الشهر.`,
-  monthlyLimit: (limit, plan) => `استعملت دروس ${plan} (${limit}) لهذا الشهر. رقِّ اشتراكك للمتابعة.`,
-  tooLongForPlan: (plan, length) => `يقبل ${plan} تسجيلات حتى ${length}. رقِّ اشتراكك لدروس أطول.`,
+  monthlyLimit: (limit, plan) => `استعملت دروس ${plan} (${limit}) لهذا الشهر. ستعود في أول الشهر.`,
+  tooLongForPlan: (plan, length) => `يقبل ${plan} تسجيلات حتى ${length}. قسّم الدرس إلى تسجيلات أقصر.`,
   lengths: {
     minutes: (n) => `${n} دقيقة`,
     hours: (n) => (n === 1 ? "ساعة واحدة" : n === 2 ? "ساعتين" : `${n} ساعات`),
