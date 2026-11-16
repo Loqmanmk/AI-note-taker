@@ -70,6 +70,10 @@ export default function PrivacyPage() {
           does not before {LEGAL.appName} is offered to the public.
         </li>
         <li>
+          <strong>Groq</strong>: turning recordings into text (speech-to-text), so the notes can be written from the
+          text. The recording is sent only for that, and is not kept by us after your notes are written.
+        </li>
+        <li>
           <strong>Vercel</strong>: hosting of our website and server.
         </li>
         <li>

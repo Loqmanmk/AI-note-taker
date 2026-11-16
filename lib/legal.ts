@@ -16,7 +16,7 @@ export const LEGAL = {
   contactEmail: setting(process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL, "[your contact email]"),
   /** The country whose data protection law applies (for Morocco: law 09-08). */
   country: setting(process.env.NEXT_PUBLIC_LEGAL_COUNTRY, "[Your country]"),
-  lastUpdated: "15 November 2026",
+  lastUpdated: "16 November 2026",
   /** How long after a first payment a student can ask for their money back. */
   refundDays: 14,
 } as const;
