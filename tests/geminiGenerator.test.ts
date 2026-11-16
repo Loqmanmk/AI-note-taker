@@ -28,7 +28,7 @@ describe("GeminiStudyPackGenerator", () => {
     const { client, calls } = fakeClient(() => okReply);
     const result = await new GeminiStudyPackGenerator(client, ["test-model"]).generate(request);
 
-    expect(result).toEqual({ pack: SAMPLE_PACK, demo: false });
+    expect(result).toEqual({ pack: SAMPLE_PACK, demo: false, path: "text" });
     expect(calls[0].model).toBe("test-model");
     expect(calls[0].config.responseMimeType).toBe("application/json");
     const schema = calls[0].config.responseJsonSchema as Record<string, unknown>;

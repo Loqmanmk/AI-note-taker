@@ -1,11 +1,12 @@
 import { checkAllowance, type PlanStatus } from "../plans";
 import type { NotesResponse } from "../schema";
 import { getAccounts } from "./accounts";
+import { getAppSettings } from "./appSettings";
 import type { AuthUser } from "./auth";
 import { RateLimiter } from "./rateLimiter";
 import { formatLength, planDisplayName, requestLanguage, serverMessages, type ServerLanguage } from "./messages";
 import { authenticate } from "./requestAuth";
-import { GenerationError, type GenerationErrorCode, type GenerationResult } from "./studyPackGenerator";
+import { GenerationError, type AiPath, type GenerationErrorCode, type GenerationResult } from "./studyPackGenerator";
 
 /** Every AI request has a cost, so cap how often one client can ask. Shared by all notes routes. */
 const limiter = new RateLimiter(10, 10 * 60 * 1000);
@@ -39,6 +40,13 @@ export function errorResponse(status: number, message: string, headers?: Headers
   return Response.json({ error: message }, { status, headers });
 }
 
+/** A 503 with a clear message while an admin has paused new notes, otherwise nothing. */
+export async function maintenanceResponse(language: ServerLanguage): Promise<Response | undefined> {
+  const settings = await getAppSettings().catch(() => null);
+  if (!settings?.maintenance) return undefined;
+  return errorResponse(503, serverMessages(language).maintenance, { "Retry-After": "300" });
+}
+
 /** The code the apps look for to offer an upgrade. */
 export const PLAN_LIMIT_CODE = "plan_limit";
 
@@ -70,10 +78,10 @@ export async function planLimitResponse(
 }
 
 /** Counts a class against the student's plan. A failure is logged: the notes are already written. */
-export async function recordUsage(user: AuthUser | null, recordingSeconds: number): Promise<void> {
+export async function recordUsage(user: AuthUser | null, recordingSeconds: number, aiPath?: AiPath): Promise<void> {
   const plans = getAccounts().plans;
   if (!user || !plans) return;
-  await plans.recordUsage(user, recordingSeconds).catch((err: unknown) => {
+  await plans.recordUsage(user, recordingSeconds, aiPath).catch((err: unknown) => {
     console.error("[plans] could not record usage", err);
   });
 }
@@ -115,7 +123,7 @@ async function saveToAccount(
   if (!user || !repository || result.demo) return undefined;
   try {
     const classId = await repository.save(user, result.pack);
-    await recordUsage(user, recordingSeconds);
+    await recordUsage(user, recordingSeconds, result.path);
     return classId;
   } catch (err) {
     console.error("[notes] could not save the class", err);

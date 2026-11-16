@@ -24,6 +24,7 @@ const en = {
   recordingTooShort: "The recording is too short to make notes from.",
   unsupportedFormat: "This audio format is not supported.",
   couldNotSave: "Could not save the class. Try again.",
+  maintenance: "FocusNotes is being updated. Your recording is kept on your phone: try again in a few minutes.",
   monthlyLimitPro: (limit: number) => `You have used your ${limit} classes this month. They come back on the 1st.`,
   monthlyLimit: (limit: number, plan: string) =>
     `You have used your ${limit} ${plan} classes this month. They come back on the 1st.`,
@@ -49,6 +50,7 @@ const fr: ServerMessages = {
   recordingTooShort: "L’enregistrement est trop court pour en faire des notes.",
   unsupportedFormat: "Ce format audio n’est pas pris en charge.",
   couldNotSave: "Impossible d’enregistrer le cours. Réessayez.",
+  maintenance: "FocusNotes est en cours de mise à jour. Votre enregistrement reste sur votre téléphone : réessayez dans quelques minutes.",
   monthlyLimitPro: (limit) => `Vous avez utilisé vos ${limit} cours de ce mois. Ils reviennent le 1er.`,
   monthlyLimit: (limit, plan) =>
     `Vous avez utilisé vos ${limit} cours ${plan} de ce mois. Ils reviennent le 1er.`,
@@ -69,6 +71,7 @@ const ar: ServerMessages = {
   recordingTooShort: "التسجيل قصير جدًا لكتابة ملاحظات منه.",
   unsupportedFormat: "صيغة الصوت هذه غير مدعومة.",
   couldNotSave: "تعذّر حفظ الدرس. حاول مرة أخرى.",
+  maintenance: "يتم تحديث FocusNotes الآن. تسجيلك محفوظ على هاتفك: حاول مرة أخرى بعد بضع دقائق.",
   monthlyLimitPro: (limit) => `استعملت دروسك (${limit}) لهذا الشهر. ستعود في أول الشهر.`,
   monthlyLimit: (limit, plan) => `استعملت دروس ${plan} (${limit}) لهذا الشهر. ستعود في أول الشهر.`,
   tooLongForPlan: (plan, length) => `يقبل ${plan} تسجيلات حتى ${length}. قسّم الدرس إلى تسجيلات أقصر.`,

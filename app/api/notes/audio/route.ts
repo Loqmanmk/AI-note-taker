@@ -13,6 +13,7 @@ import {
   errorResponse,
   generationFailureMessage,
   generationResponse,
+  maintenanceResponse,
   planLimitResponse,
   recordUsage,
 } from "@/lib/server/http";
@@ -52,6 +53,9 @@ export async function POST(req: Request) {
 
   const admitted = await admitRequest(req);
   if (admitted instanceof Response) return admitted;
+  // Refused before the recording is read: it stays on the phone, and the send queue retries later.
+  const paused = await maintenanceResponse(language);
+  if (paused) return paused;
 
   const generator = getStudyPackGenerator();
   if (!supportsAudio(generator)) {
@@ -143,7 +147,7 @@ async function fromStorage(
     try {
       const result = await generator.generateFromAudio({ ...fields, audio, mimeType });
       await repository.complete(user, classId, result.pack);
-      await recordUsage(user, recordingSeconds);
+      await recordUsage(user, recordingSeconds, result.path);
     } catch (err) {
       console.error(`[notes] background job ${classId} failed`, err);
       await repository.fail(user, classId, generationFailureMessage(err, language)).catch((failErr: unknown) => {

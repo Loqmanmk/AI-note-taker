@@ -87,9 +87,10 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyP
     this.timeouts = { ...DEFAULT_TIMEOUTS, ...timeouts };
   }
 
-  generate(request: NotesRequest): Promise<GenerationResult> {
+  async generate(request: NotesRequest): Promise<GenerationResult> {
     const deadline = Date.now() + this.timeouts.totalMs;
-    return this.generateWithFallback(buildUserMessage(request), this.timeouts.textMs, deadline);
+    const result = await this.generateWithFallback(buildUserMessage(request), this.timeouts.textMs, deadline);
+    return { ...result, path: "text" };
   }
 
   async generateFromAudio(request: AudioNotesRequest): Promise<GenerationResult> {
@@ -100,7 +101,8 @@ export class GeminiStudyPackGenerator implements StudyPackGenerator, AudioStudyP
         createPartFromUri(file.uri ?? "", file.mimeType ?? request.mimeType),
         buildAudioMessage(request),
       ]);
-      return await this.generateWithFallback(contents, this.timeouts.audioMs, deadline);
+      const result = await this.generateWithFallback(contents, this.timeouts.audioMs, deadline);
+      return { ...result, path: "audio" };
     } finally {
       // The recording is only needed for this one request; do not leave it on Google's servers.
       if (file.name) await this.client.files.delete({ name: file.name }).catch(() => {});

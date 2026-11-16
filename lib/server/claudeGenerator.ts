@@ -22,7 +22,7 @@ export class ClaudeStudyPackGenerator implements StudyPackGenerator {
     if (response.stop_reason === "max_tokens" || !response.parsed_output) {
       throw new GenerationError("too_long");
     }
-    return { pack: sanitizeStudyPack(response.parsed_output), demo: false };
+    return { pack: sanitizeStudyPack(response.parsed_output), demo: false, path: "text" };
   }
 
   private async callModel(request: NotesRequest) {

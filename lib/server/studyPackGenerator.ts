@@ -1,6 +1,9 @@
 import type { AudioNotesFields, NotesRequest, StudyPack } from "../schema";
 
-export type GenerationResult = { pack: StudyPack; demo: boolean };
+/** How the notes were written, for the AI cost estimate. */
+export type AiPath = "transcript" | "audio" | "text";
+
+export type GenerationResult = { pack: StudyPack; demo: boolean; path?: AiPath };
 
 /**
  * Turns a transcript into a study pack.

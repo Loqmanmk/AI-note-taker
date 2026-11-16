@@ -9,6 +9,9 @@ import type {
 import type { NotesRequest } from "../schema";
 import type { Transcriber } from "./transcriber";
 
+/** Whether transcription is switched on right now (an admin can turn it off). */
+export type TranscriptionSwitch = () => Promise<boolean>;
+
 /** Speech-to-text is weak on Arabic and Moroccan Darija: the notes model listens to those itself. */
 const LISTEN_DIRECTLY = new Set(["arabic", "ar"]);
 /** Below this, the transcript is too thin to trust (silence, music, the wrong language). */
@@ -24,6 +27,7 @@ export class TranscribingStudyPackGenerator implements StudyPackGenerator, Audio
   constructor(
     private readonly transcriber: Transcriber,
     private readonly notes: StudyPackGenerator & AudioStudyPackGenerator,
+    private readonly enabled: TranscriptionSwitch = async () => true,
   ) {}
 
   generate(request: NotesRequest): Promise<GenerationResult> {
@@ -34,11 +38,16 @@ export class TranscribingStudyPackGenerator implements StudyPackGenerator, Audio
     const transcript = await this.tryTranscribe(request);
     if (!transcript) return this.notes.generateFromAudio(request);
     console.info(`[notes] writing from a ${transcript.length}-character transcript`);
-    return this.notes.generate({ transcript, language: request.language });
+    const result = await this.notes.generate({ transcript, language: request.language });
+    return { ...result, path: "transcript" };
   }
 
   /** The transcript text with markers, or null when the audio should go to the notes model. */
   private async tryTranscribe(request: AudioNotesRequest): Promise<string | null> {
+    if (!(await this.enabled().catch(() => true))) {
+      console.info("[notes] transcription is switched off; the notes model will listen to the audio");
+      return null;
+    }
     if (request.audio.size > this.transcriber.maxBytes) {
       console.info("[notes] recording too large for transcription; the notes model will listen to it");
       return null;
