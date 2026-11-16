@@ -1,0 +1,185 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: Manrope; font-weight: 800; src: url("fonts/Manrope_800ExtraBold.ttf"); }
+@font-face { font-family: Manrope; font-weight: 700; src: url("fonts/Manrope_700Bold.ttf"); }
+@font-face { font-family: Manrope; font-weight: 600; src: url("fonts/Manrope_600SemiBold.ttf"); }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #17152B; font-family: Manrope, sans-serif; color: #fff; }
+#stage { position: absolute; inset: 0; overflow: hidden; }
+.bg { position: absolute; inset: 0; }
+#bg-dark { background: radial-gradient(1200px 900px at 50% 35%, #2a2560 0%, #17152B 70%); }
+#bg-violet { background: linear-gradient(160deg, #6D5DF6 0%, #8B4CF0 100%); }
+.blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; }
+#blob1 { width: 760px; height: 760px; background: #a78bff; left: -220px; top: 240px; }
+#blob2 { width: 680px; height: 680px; background: #5b4fe9; right: -240px; top: 1100px; }
+.caption { position: absolute; left: 80px; right: 80px; top: 170px; height: 400px; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 0 22px; font-weight: 800; font-size: 82px; line-height: 1.16; letter-spacing: -2px; text-align: center; }
+.caption span { display: inline-block; will-change: transform, opacity; }
+.caption .accent { color: #FFB27A; }
+.phone { position: absolute; left: 50%; top: 600px; width: 580px; height: 1255px; margin-left: -290px; border-radius: 62px; background: #0f0e1a; padding: 14px; box-shadow: 0 50px 120px rgba(10, 6, 40, 0.55), 0 0 0 3px rgba(255, 255, 255, 0.14); will-change: transform, opacity; }
+.phone .screen { position: relative; width: 100%; height: 100%; border-radius: 50px; overflow: hidden; background: #F6F5FB; }
+.phone img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.ring { position: absolute; left: 50%; top: 71.2%; width: 470px; height: 110px; margin: -55px 0 0 -235px; border-radius: 34px; border: 8px solid #FF7A2F; box-shadow: 0 0 60px rgba(255, 122, 47, 0.8); }
+.bars { position: absolute; top: 1090px; display: flex; align-items: center; gap: 16px; height: 300px; }
+#bars-l { left: 56px; } #bars-r { right: 56px; }
+.bars i { display: block; width: 20px; border-radius: 10px; background: #fff; opacity: 0.9; }
+#hook { position: absolute; left: 60px; right: 60px; top: 560px; text-align: center; font-weight: 800; font-size: 150px; line-height: 1.04; letter-spacing: -5px; }
+#hook span { display: inline-block; }
+#hook .accent { color: #FFB27A; }
+#hook-sub { position: absolute; left: 0; right: 0; top: 1130px; text-align: center; font-weight: 700; font-size: 52px; opacity: 0.8; }
+.speed { position: absolute; height: 6px; border-radius: 3px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55)); }
+#end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; }
+#end img { position: absolute; top: 470px; width: 330px; height: 330px; border-radius: 76px; box-shadow: 0 40px 100px rgba(10, 6, 40, 0.5); }
+#end .name { position: absolute; top: 850px; font-weight: 800; font-size: 104px; letter-spacing: -3px; }
+#end .tag { position: absolute; top: 1010px; left: 110px; right: 110px; text-align: center; font-weight: 600; font-size: 50px; line-height: 1.3; opacity: 0.95; }
+#end .pill { position: absolute; top: 1250px; background: #fff; color: #5B4FE9; font-weight: 800; font-size: 50px; padding: 30px 62px; border-radius: 999px; box-shadow: 0 24px 60px rgba(10, 6, 40, 0.35); }
+#end .small { position: absolute; top: 1440px; left: 140px; right: 140px; text-align: center; font-weight: 600; font-size: 30px; opacity: 0.75; line-height: 1.35; }
+</style>
+<div id="stage">
+  <div class="bg" id="bg-dark"></div>
+  <div class="bg" id="bg-violet"><div class="blob" id="blob1"></div><div class="blob" id="blob2"></div></div>
+
+  <div id="hook"></div>
+  <div id="hook-sub">…et tu n’arrives plus à suivre ?</div>
+  <div id="speedlines"></div>
+
+  <div class="caption" id="cap2"></div>
+  <div class="caption" id="cap3"></div>
+  <div class="caption" id="cap4"></div>
+  <div class="caption" id="cap5"></div>
+  <div class="caption" id="cap6"></div>
+
+  <div class="bars" id="bars-l"></div>
+  <div class="bars" id="bars-r"></div>
+
+  <div class="phone" id="phone"><div class="screen">
+    <img id="s2" src="02-recording.png"><img id="s3" src="03-lost.png"><img id="s4" src="04-focus.png">
+    <img id="s5a" src="05-notes.png"><img id="s5b" src="06-quiz.png"><img id="s6" src="07-lost-explained.png">
+    <div class="ring" id="ring"></div>
+  </div></div>
+
+  <div id="end">
+    <img id="logo" src="logo.png">
+    <div class="name" id="name">FocusNotes</div>
+    <div class="tag" id="tag">Tes cours, transformés en notes prêtes pour l’examen.</div>
+    <div class="pill" id="pill">Bientôt sur Google Play</div>
+    <div class="small" id="small">Enregistre uniquement avec l’accord de ton professeur.</div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const out = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const back = (x) => { x = clamp(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const prog = (t, start, dur) => clamp((t - start) / dur);
+/** 1 between start and end, with short fades. */
+const vis = (t, start, end, fade = 0.22) => clamp(Math.min((t - start) / fade, (end - t) / fade));
+
+function words(el, text, accents = []) {
+  el.innerHTML = "";
+  return text.split(" ").map((w) => {
+    const s = document.createElement("span");
+    s.textContent = w;
+    if (accents.some((a) => w.includes(a))) s.className = "accent";
+    el.appendChild(s);
+    return s;
+  });
+}
+function reveal(spans, t, start, gap = 0.085) {
+  spans.forEach((s, i) => {
+    const p = prog(t, start + i * gap, 0.3);
+    s.style.opacity = out(p);
+    s.style.transform = `translateY(${(1 - back(p)) * 46}px) scale(${0.72 + 0.28 * back(p)})`;
+  });
+}
+
+const hook = words($("hook"), "Le prof parle trop vite ?", ["trop", "vite"]);
+const caps = {
+  cap2: words($("cap2"), "Pose ton téléphone. FocusNotes écoute le cours.", ["FocusNotes"]),
+  cap3: words($("cap3"), "Perdu ? Un clic.", ["Un", "clic."]),
+  cap4: words($("cap4"), "Ce qui tombe à l’examen, classé pour toi.", ["l’examen,"]),
+  cap5: words($("cap5"), "Tes notes. Ton résumé. Ton quiz.", ["quiz."]),
+  cap6: words($("cap6"), "Ce que tu n’as pas compris, réexpliqué simplement.", ["réexpliqué", "simplement."]),
+};
+$("cap3").style.fontSize = "112px";
+
+for (const id of ["bars-l", "bars-r"]) for (let i = 0; i < 4; i++) $(id).appendChild(document.createElement("i"));
+const lines = [];
+for (let i = 0; i < 9; i++) { const d = document.createElement("div"); d.className = "speed"; $("speedlines").appendChild(d); lines.push(d); }
+
+const SCENES = { s2: [3, 8], s3: [8, 12], s4: [12, 17], s5a: [17, 19.1], s5b: [18.9, 21], s6: [21, 25] };
+const CAPS = { cap2: [3, 8], cap3: [8, 12], cap4: [12, 17], cap5: [17, 21], cap6: [21, 25] };
+
+window.render = function (t) {
+  // Backgrounds
+  $("bg-violet").style.opacity = out(prog(t, 2.75, 0.4));
+  $("blob1").style.transform = `translate(${Math.sin(t * 0.5) * 60}px, ${Math.cos(t * 0.4) * 80}px)`;
+  $("blob2").style.transform = `translate(${Math.cos(t * 0.45) * 70}px, ${Math.sin(t * 0.35) * 70}px)`;
+
+  // 1. Hook
+  const hv = vis(t, 0, 2.95, 0.18);
+  $("hook").style.opacity = hv;
+  hook.forEach((s, i) => {
+    const p = prog(t, 0.12 + i * 0.16, 0.32);
+    const shake = t > 1.25 && t < 2.6 && i >= 3 ? Math.sin(t * 46 + i) * 7 : 0;
+    s.style.opacity = out(p);
+    s.style.transform = `translate(${shake}px, ${(1 - back(p)) * 70}px) scale(${0.6 + 0.4 * back(p)})`;
+    s.style.marginRight = "26px";
+  });
+  $("hook").style.transform = `scale(${1 + prog(t, 0, 3) * 0.05})`;
+  $("hook-sub").style.opacity = out(prog(t, 1.5, 0.4)) * hv * 0.85;
+  $("hook-sub").style.transform = `translateY(${(1 - out(prog(t, 1.5, 0.4))) * 30}px)`;
+  lines.forEach((d, i) => {
+    const cycle = ((t * 1.6 + i * 0.37) % 1);
+    d.style.top = `${240 + i * 175}px`;
+    d.style.width = `${260 + (i % 3) * 120}px`;
+    d.style.left = `${-400 + cycle * 1700}px`;
+    d.style.opacity = hv * (t > 1.1 ? 0.5 : 0) * Math.sin(cycle * Math.PI);
+  });
+
+  // Captions
+  for (const [id, [a, b]] of Object.entries(CAPS)) {
+    $(id).style.opacity = vis(t, a, b - 0.05);
+    reveal(caps[id], t, a + 0.2, id === "cap5" ? 0.2 : 0.085);
+  }
+
+  // Phone: enters at 3s, small pop on each scene change, leaves at 25s.
+  const enter = back(prog(t, 3.05, 0.6));
+  const leave = out(prog(t, 24.8, 0.35));
+  let pop = 0;
+  for (const cut of [8, 12, 17, 21]) pop += Math.sin(clamp((t - cut) / 0.35) * Math.PI) * 0.025;
+  const drift = 1 + prog(t, 3, 22) * 0.035;
+  $("phone").style.opacity = out(prog(t, 3.0, 0.3)) * (1 - leave);
+  $("phone").style.transform = `translateY(${(1 - enter) * 420 + leave * 300}px) scale(${(0.9 + 0.1 * enter) * drift + pop}) rotate(${Math.sin(t * 0.8) * 0.5}deg)`;
+  for (const [id, [a, b]] of Object.entries(SCENES)) $(id).style.opacity = vis(t, a - 0.12, b + 0.12, 0.24);
+  // Slow scroll inside the long screens so they feel alive.
+  $("s4").style.objectPosition = `50% ${prog(t, 13.2, 3.4) * 26}%`;
+  $("s5a").style.objectPosition = `50% ${prog(t, 17.3, 1.6) * 22}%`;
+  $("s6").style.objectPosition = `50% ${prog(t, 22, 2.6) * 8}%`;
+
+  // "Je suis perdu" ring
+  const rv = vis(t, 8.5, 11.8);
+  const pulse = (t * 1.5) % 1;
+  $("ring").style.opacity = rv * (1 - pulse * 0.6);
+  $("ring").style.transform = `scale(${1 + pulse * 0.12})`;
+
+  // Sound bars while recording
+  const bv = vis(t, 3.6, 7.8);
+  for (const id of ["bars-l", "bars-r"]) {
+    $(id).style.opacity = bv;
+    [...$(id).children].forEach((b, i) => { b.style.height = `${70 + Math.abs(Math.sin(t * (5 + i * 1.3) + i * 2 + (id === "bars-r" ? 1 : 0))) * 200}px`; });
+  }
+
+  // End card
+  $("end").style.opacity = out(prog(t, 25, 0.3));
+  const lp = back(prog(t, 25.1, 0.6));
+  $("logo").style.transform = `scale(${0.4 + 0.6 * lp}) rotate(${(1 - lp) * -8}deg)`;
+  $("logo").style.opacity = out(prog(t, 25.1, 0.25));
+  const item = (id, start, dy = 40) => { const p = out(prog(t, start, 0.45)); $(id).style.opacity = p * (id === "small" ? 0.75 : 1); $(id).style.transform = `translateY(${(1 - p) * dy}px)`; };
+  item("name", 25.5); item("tag", 25.9); item("small", 27.0, 20);
+  const pp = back(prog(t, 26.5, 0.5));
+  $("pill").style.opacity = out(prog(t, 26.5, 0.25));
+  $("pill").style.transform = `scale(${(0.6 + 0.4 * pp) * (1 + Math.sin(Math.max(0, t - 27.2) * 4) * 0.018)})`;
+};
+window.render(0);
+</script>
